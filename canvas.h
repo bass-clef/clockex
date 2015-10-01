@@ -48,7 +48,7 @@ public:
 		SetDCBrushColor((HDC)*p, crColor);
 		SetDCPenColor((HDC)*p, crColor);
 		SetTextColor((HDC)*p, crColor);
-		SetBkMode((HDC)*p, TRANSPARENT);
+		SetBkColor((HDC)*p, crColor);
 
 		return *this;
 	}
@@ -56,16 +56,22 @@ public:
 	canvas white()							{ return color(0xFFFFFF); }
 	canvas black()							{ return color(0); }
 
-	void repaint()
+	void redraw()
 	{
-		p->repaint();
+		p->redraw();
 	}
 
 
 	// 文字(単一行)
 	void print(char* text)
 	{
-		TextOut((HDC)*p, current.x, current.y, text, lstrlen(text));
+		SetBkMode((HDC)*p, TRANSPARENT);
+		TextOut((HDC)*p, this->cx(), this->cy(current.y), text, lstrlen(text));
+		SetBkMode((HDC)*p, OPAQUE);
+
+		SIZE size;
+		GetTextExtentPoint32((HDC)*p, text, lstrlen(text), &size);
+		
 	}
 	void printf(char* format, ...)
 	{
@@ -86,13 +92,17 @@ public:
 	// 文字(自動拡張)
 	void mes(char* text)
 	{
-		SIZE size;
-		GetTextExtentPoint32((HDC)*p, text, lstrlen(text), &size);
+		RECT rc;
+		DrawText((HDC)*p, text, lstrlen(text), &rc, DT_EXPANDTABS | DT_CALCRECT);
+		DrawText((HDC)*p, text, lstrlen(text), &rc, DT_WORDBREAK | DT_EXPANDTABS | DT_CALCRECT);
+		rc.left += this->cx();
+		rc.top += this->cy();
 
-		RECT rc = { current.x, current.y, size.cx, size.cy };
+		SetBkMode((HDC)*p, TRANSPARENT);
 		DrawText((HDC)*p, text, lstrlen(text), &rc, DT_WORDBREAK | DT_EXPANDTABS);
+		SetBkMode((HDC)*p, OPAQUE);
 
-		this->cy(current.y + size.cy);
+		this->cy(rc.bottom);
 	}
 	// 文字(フォーマット付き)
 	void mesf(char* format, ...)
@@ -118,7 +128,7 @@ public:
 		SetPixel((HDC)*p, current.x, current.y, GetDCPenColor((HDC)p));
 	}
 	// 点 (取得)
-	const COLORREF pix()
+	const COLORREF gPix()
 	{
 		const COLORREF crColor = GetPixel((HDC)*p, current.x, current.y);
 		color(crColor);
@@ -137,9 +147,8 @@ public:
 	void box(int x1, int y1, int x2, int y2)
 	{
 		RECT rc = { x1, y1, x2, this->cy(y2) };
-		FrameRect((HDC)*p, &rc, (HBRUSH)GetCurrentObject((HDC)*p, OBJ_PEN));
+		FrameRect((HDC)*p, &rc, (HBRUSH)*p);
 	}
-
 	// 四角形(塗りつぶし)
 	void fillBox(int x1, int y1, int x2, int y2)
 	{
@@ -151,7 +160,6 @@ public:
 	{
 		Arc((HDC)*p, x1, y1, x2, this->cy(y2), x2 - x1, y1, x2 - x1, y1);
 	}
-
 	// 円(塗りつぶし)
 	void fillCircle(int x1, int y1, int x2, int y2)
 	{

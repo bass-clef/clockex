@@ -41,12 +41,12 @@ public:
 	}
 
 	// override
-	operator HDC()	{ return hMDC; }
-	operator HWND()	{ return hWnd; }
-	operator HFONT() { return (HFONT)GetCurrentObject(hMDC, OBJ_FONT); }
-	operator HPEN() { return (HPEN)GetCurrentObject(hMDC, OBJ_PEN); }
-	operator HBRUSH() { return (HBRUSH)GetCurrentObject(hMDC, OBJ_BRUSH); }
-	operator HBITMAP() { return (HBITMAP)GetCurrentObject(hMDC, OBJ_BITMAP); }
+	operator HDC()		{ return hMDC; }
+	operator HWND()		{ return hWnd; }
+	operator HFONT()	{ return hFont; }
+	operator HPEN()		{ return hPen; }
+	operator HBRUSH()	{ return hBrush; }
+	operator HBITMAP()	{ return hMBitmap; }
 
 	// ÉNÉâÉXÇÃçÏê¨
 	void makeClass(char* AppName = "static", WNDPROC WindowProc = DefWindowProc, UINT style = CS_HREDRAW | CS_VREDRAW, HINSTANCE hInstance = NULL)
@@ -109,7 +109,7 @@ public:
 
 		COLORREF crColor = 0;
 		hBrush = CreateSolidBrush(crColor);
-		hPen = CreatePen(PS_SOLID, font.cx, crColor);
+		hPen = CreatePen(PS_SOLID, 1, crColor);
 		SelectObject(hMDC, hBrush);
 		SelectObject(hMDC, hPen);
 
@@ -148,7 +148,7 @@ public:
 
 
 	// çƒï`âÊ
-	void repaint()
+	void redraw()
 	{
 		BitBlt(hDC, 0, 0, GetDeviceCaps(hMDC, HORZRES), GetDeviceCaps(hMDC, VERTRES), hMDC, 0, 0, SRCCOPY);
 	}

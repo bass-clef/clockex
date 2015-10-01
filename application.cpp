@@ -1,5 +1,8 @@
 
 #include <Windows.h>
+#include <chrono>
+#include <ctime>
+#include <time.h>
 
 #include "application.h"
 #include "canvas.h"
@@ -34,19 +37,48 @@ void app::init(form* window, canvas<form>* client, HINSTANCE hInst, UINT nCmd)
 		WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_LAYERED, 0, 0);
 
 	window->makeFont("‚l‚r ƒSƒVƒbƒN", 14);
-	SetLayeredWindowAttributes(*window, 0xFEFEFE, 0xB0, LWA_COLORKEY | LWA_ALPHA);
+	SetLayeredWindowAttributes((HWND)*window, transColor, 0xB0, LWA_COLORKEY | LWA_ALPHA);
 
-
-	LONG x = getWidth() / 2, y = getHeight() / 2;
-
-	client->color(transColor).fillBox(0, 0, getWidth(), getHeight());
-	client->white().pos(x, y).sPix();
-
-	client->white().printf("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+	appColor = RGB(255, 128, 0);
 
 	window->titlef("%d x %d : %d", getWidth(), getHeight(), (HDC)*window);
-
 	draw();
+}
+
+class Clock
+{
+	std::time_t t;
+	std::chrono::time_point<std::chrono::system_clock> now;
+	tm time;
+
+public:
+	Clock get()
+	{
+		now = std::chrono::system_clock::now();
+		std::time_t t = std::chrono::system_clock::to_time_t(now);
+		localtime_s(&time, &t);
+
+		return *this;
+	}
+	// Žž
+	int hour()
+	{
+		return time.tm_hour;
+	}
+	// •ª
+	int minute()
+	{
+		return time.tm_min;
+	}
+	// •b
+	int second()
+	{
+		return time.tm_sec;
+	}
+};
+
+namespace {
+	Clock c;
 }
 
 
@@ -58,8 +90,8 @@ bool app::main()
 		return true;
 	}
 
-
-
+	c.get();
+	draw();
 
 	return false;
 }
@@ -68,8 +100,19 @@ bool app::main()
 // •`‰æ
 int app::draw()
 {
+	LONG x = getWidth() / 2, y = getHeight() / 2;
+	/**/
+	client->color(transColor).box(0, 0, getWidth(), getHeight());
 	
-	client->repaint();
+	client->color(appColor).fillCircle(0, 0, getWidth(), getHeight());
+	client->color(appColor).pos(x, y).sPix();
+	/**/
+
+	client->color(appColor).pos(0, 0).mesf("%d:%d %d", c.hour(), c.minute(), c.second());
+
+
+	client->redraw();
+
 	return false;
 }
 
