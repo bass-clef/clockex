@@ -1,23 +1,23 @@
 #pragma once
 
 #include <Windows.h>
-#include <thread>
+#include <future>
 
 class thread
 {
 	std::thread t;
 
+
 public:
 	// íxâÑé¿çs
-	template<typename T, typename P>
-	void delayFunc(DWORD ms, T func, P param = nullptr)
+	template<typename T>
+	void delayFunc(DWORD ms, T func)
 	{
 		t = std::thread([&]() {
-			Sleep(ms);
-			func(param);
+			std::this_thread::sleep_for(std::chrono::microseconds(ms));
+			func();
 		});
+		t.detach();
 		t.join();
 	}
-
 };
-

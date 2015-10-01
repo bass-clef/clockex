@@ -3,12 +3,13 @@
 #include <Windows.h>
 #include <stdio.h>
 
+
 /*
  * winフォームの作成クラス
  */
 class form
 {
-	WNDCLASSEX	wce;
+	WNDCLASSEX	wce;		// クラス作成用
 	MSG		msg;			// メッセージ処理用
 	HWND	hWnd;			// ウィンドウハンドル
 	HDC		hDC, hMDC;		// デバイスコンテキスト/メモリ
@@ -109,9 +110,7 @@ public:
 		COLORREF crColor = 0;
 		hBrush = CreateSolidBrush(crColor);
 		hPen = CreatePen(PS_SOLID, font.cx, crColor);
-		SelectObject(hDC, hBrush);
 		SelectObject(hMDC, hBrush);
-		SelectObject(hDC, hPen);
 		SelectObject(hMDC, hPen);
 
 	}
@@ -124,11 +123,10 @@ public:
 		font.cx = height / 2;
 		font.cy = height;
 		hFont = CreateFont(font.cy, font.cx, 0, 0, FW_NORMAL, false, false, false, SHIFTJIS_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, FIXED_PITCH, faceName);
-		SelectObject(hDC, hFont);
 		SelectObject(hMDC, hFont);
 	}
 
-	// メッセージループ
+	// メッセージループ (falseを返すと終了)
 	template<typename MSGLPFUNC> bool messageLoop(MSGLPFUNC appMain)
 	{
 		if (PeekMessage(&msg, NULL, 0, 0, PM_NOREMOVE)) {
@@ -136,13 +134,17 @@ public:
 			if (!GetMessage(&msg, NULL, 0, 0)) return false;// WM_QUITが来てたら
 			TranslateMessage(&msg);	// キーボードを利用可能にする
 			DispatchMessage(&msg);	// 制御をWindowsに戻す
+			return true;
 		}
-		else {
-			appMain();
-		}
-		return true;
+
+		return appMain(msg);
 	}
 
+	// MSG取得
+	MSG* getMsg()
+	{
+		return &msg;
+	}
 
 
 	// 再描画
