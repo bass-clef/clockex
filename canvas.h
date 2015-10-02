@@ -8,10 +8,10 @@
 */
 template<typename parent> class canvas
 {
-	parent* p;
 	POINT current;
 
 public:
+	parent* p;
 	canvas(parent* p) {
 		this->p = p;
 		current = {0, 0};
@@ -37,7 +37,7 @@ public:
 	canvas pos(int x = INT_MAX, int y = INT_MAX)
 	{
 		this->cx(x);
-		this->cx(y);
+		this->cy(y);
 
 		return *this;
 	}
@@ -71,7 +71,7 @@ public:
 
 		SIZE size;
 		GetTextExtentPoint32((HDC)*p, text, lstrlen(text), &size);
-		
+		this->cy(size.cy);
 	}
 	void printf(char* format, ...)
 	{
@@ -92,11 +92,9 @@ public:
 	// •¶Žš(Ž©“®Šg’£)
 	void mes(char* text)
 	{
-		RECT rc;
+		RECT rc = {this->cx(), this->cy(), 0, 0};
 		DrawText((HDC)*p, text, lstrlen(text), &rc, DT_EXPANDTABS | DT_CALCRECT);
 		DrawText((HDC)*p, text, lstrlen(text), &rc, DT_WORDBREAK | DT_EXPANDTABS | DT_CALCRECT);
-		rc.left += this->cx();
-		rc.top += this->cy();
 
 		SetBkMode((HDC)*p, TRANSPARENT);
 		DrawText((HDC)*p, text, lstrlen(text), &rc, DT_WORDBREAK | DT_EXPANDTABS);
@@ -125,7 +123,7 @@ public:
 	// “_
 	void sPix()
 	{
-		SetPixel((HDC)*p, current.x, current.y, GetDCPenColor((HDC)p));
+		SetPixel((HDC)*p, current.x, current.y, GetDCPenColor((HDC)*p));
 	}
 	// “_ (Žæ“¾)
 	const COLORREF gPix()
@@ -146,23 +144,23 @@ public:
 	// ŽlŠpŒ`
 	void box(int x1, int y1, int x2, int y2)
 	{
-		RECT rc = { x1, y1, x2, this->cy(y2) };
+		RECT rc = { x1, y1, x2, y2 };
 		FrameRect((HDC)*p, &rc, (HBRUSH)*p);
 	}
 	// ŽlŠpŒ`(“h‚è‚Â‚Ô‚µ)
 	void fillBox(int x1, int y1, int x2, int y2)
 	{
-		Rectangle((HDC)*p, x1, y1, x2, this->cy(y2));
+		Rectangle((HDC)*p, x1, y1, x2, y2);
 	}
 
 	// ‰~
 	void circle(int x1, int y1, int x2, int y2)
 	{
-		Arc((HDC)*p, x1, y1, x2, this->cy(y2), x2 - x1, y1, x2 - x1, y1);
+		Arc((HDC)*p, x1, y1, x2, y2, x2 - x1, y1, x2 - x1, y1);
 	}
 	// ‰~(“h‚è‚Â‚Ô‚µ)
 	void fillCircle(int x1, int y1, int x2, int y2)
 	{
-		Ellipse((HDC)*p, x1, y1, x2, this->cy(y2));
+		Ellipse((HDC)*p, x1, y1, x2, y2);
 	}
 };

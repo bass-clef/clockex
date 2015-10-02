@@ -49,7 +49,7 @@ public:
 	operator HBITMAP()	{ return hMBitmap; }
 
 	// クラスの作成
-	void makeClass(char* AppName = "static", WNDPROC WindowProc = DefWindowProc, UINT style = CS_HREDRAW | CS_VREDRAW, HINSTANCE hInstance = NULL)
+	void makeClass(HINSTANCE hInstance = NULL, char* AppName = "static", WNDPROC WindowProc = DefWindowProc, UINT style = CS_HREDRAW | CS_VREDRAW)
 	{
 		wce.cbSize = sizeof(wce);								// 構造体のsize
 		wce.style = style;										// スタイル
@@ -103,16 +103,15 @@ public:
 		}
 
 		SelectObject(hMDC, hMBitmap);
-		PatBlt(hMDC, 0, 0, rc.right, rc.bottom, WHITENESS);
-
-		makeFont("ＭＳ ゴシック", 16);
 
 		COLORREF crColor = 0;
 		hBrush = CreateSolidBrush(crColor);
-		hPen = CreatePen(PS_SOLID, 1, crColor);
+		hPen = CreatePen(PS_SOLID, 0, crColor);
 		SelectObject(hMDC, hBrush);
 		SelectObject(hMDC, hPen);
+		PatBlt(hMDC, 0, 0, rc.right, rc.bottom, WHITENESS);
 
+		makeFont("ＭＳ ゴシック", 16);
 	}
 
 	// フォントの作成

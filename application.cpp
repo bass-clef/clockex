@@ -31,17 +31,17 @@ void app::init(form* window, canvas<form>* client, HINSTANCE hInst, UINT nCmd)
 	this->window = window;
 	this->client = client;
 
-	window->makeClass("clockex", app::wndProc);
+	appColor = 0x3399FF;
+	transColor = RGB(254, 254, 254);
+
+	window->makeClass(hInst, "clockex", app::wndProc);
 	window->makeWindow(hInst, nCmd, "clockex", "clockex", getWidth(), getHeight(),
 		WS_POPUP | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN,
-		WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_LAYERED, 0, 0);
+		WS_EX_TOPMOST | WS_EX_LAYERED, 0, 0);
 
 	window->makeFont("‚l‚r ƒSƒVƒbƒN", 14);
-	SetLayeredWindowAttributes((HWND)*window, transColor, 0xB0, LWA_COLORKEY | LWA_ALPHA);
+	SetLayeredWindowAttributes((HWND)*window, transColor, 0xB0, LWA_COLORKEY);
 
-	appColor = RGB(255, 128, 0);
-
-	window->titlef("%d x %d : %d", getWidth(), getHeight(), (HDC)*window);
 	draw();
 }
 
@@ -101,15 +101,19 @@ bool app::main()
 int app::draw()
 {
 	LONG x = getWidth() / 2, y = getHeight() / 2;
-	/**/
-	client->color(transColor).box(0, 0, getWidth(), getHeight());
+
+	client->color(transColor);
+	client->fillBox(0, 0, 100, 100);
 	
-	client->color(appColor).fillCircle(0, 0, getWidth(), getHeight());
-	client->color(appColor).pos(x, y).sPix();
-	/**/
+	client->color(appColor);
+	client->circle(0, 0, getWidth(), getHeight());
 
-	client->color(appColor).pos(0, 0).mesf("%d:%d %d", c.hour(), c.minute(), c.second());
+	client->pos(x, y).sPix();
 
+	client->pos(0, 0);
+	client->mesf("%d:%02d %2d", c.hour(), c.minute(), c.second());
+
+	client->line(0, 0, getWidth(), getHeight());
 
 	client->redraw();
 
