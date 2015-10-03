@@ -1,19 +1,19 @@
 #pragma once
 
-#include "form.h"
 #include "canvas.h"
+#include "form.h"
+
 
 // アプリケーションメインクラス
 class app
 {
 	form* window;
-	canvas<form>* client;
+	canvas<form>* cf;
 
 	SIZE size = { 100, 100 };
 	COLORREF transColor, appColor;
 
 public:
-	static LRESULT __stdcall wndProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp);
 	static void getLastError(HWND hWnd = nullptr)
 	{
 		void* lpMsgBuf;
@@ -26,13 +26,12 @@ public:
 		LocalFree(lpMsgBuf);
 	}
 
-	virtual void init(form* window, canvas<form>* client, HINSTANCE hInst, UINT nCmd);
+	virtual void init(form* window, canvas<form>* cf, HINSTANCE hInst, UINT nCmd);
 	virtual bool main();
 	virtual int draw();
 
-	int getWidth() { return size.cx; }
-	int getHeight() { return size.cy; }
+	int width() { return size.cx; }
+	int height() { return size.cy; }
 
 };
-
 

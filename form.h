@@ -1,8 +1,6 @@
 #pragma once
 
-#include <Windows.h>
-#include <stdio.h>
-
+#include "chrono.h"
 
 /*
  * winフォームの作成クラス
@@ -19,6 +17,8 @@ class form
 	HBITMAP	hMBitmap;		// メモリ用ビットマップ
 
 	SIZE font;
+
+	chrono time;
 
 public:
 	form(HWND hWnd)
@@ -47,6 +47,18 @@ public:
 	operator HPEN()		{ return hPen; }
 	operator HBRUSH()	{ return hBrush; }
 	operator HBITMAP()	{ return hMBitmap; }
+
+
+	// メンバセレクタ
+	MSG* getMsg()
+	{
+		return &msg;
+	}
+	SIZE* getFontSize()
+	{
+		return &font;
+	}
+
 
 	// クラスの作成
 	void makeClass(HINSTANCE hInstance = NULL, char* AppName = "static", WNDPROC WindowProc = DefWindowProc, UINT style = CS_HREDRAW | CS_VREDRAW)
@@ -112,6 +124,8 @@ public:
 		PatBlt(hMDC, 0, 0, rc.right, rc.bottom, WHITENESS);
 
 		makeFont("ＭＳ ゴシック", 16);
+
+		time.setprev();
 	}
 
 	// フォントの作成
@@ -126,7 +140,7 @@ public:
 	}
 
 	// メッセージループ (falseを返すと終了)
-	template<typename MSGLPFUNC> bool messageLoop(MSGLPFUNC appMain)
+	template<typename MSGLPFUNC> bool messageLoop(MSGLPFUNC appMain, long msFps = 0)
 	{
 		if (PeekMessage(&msg, NULL, 0, 0, PM_NOREMOVE)) {
 			// システムメイン
@@ -136,13 +150,16 @@ public:
 			return true;
 		}
 
-		return appMain(msg);
-	}
+		if (msFps) {
+			// FPS指定遅延
+			if (time.diff() < 1000 / msFps) {
+				return true;
+			}
 
-	// MSG取得
-	MSG* getMsg()
-	{
-		return &msg;
+			time.setprev();
+		}
+
+		return appMain(msg);
 	}
 
 
@@ -150,6 +167,13 @@ public:
 	void redraw()
 	{
 		BitBlt(hDC, 0, 0, GetDeviceCaps(hMDC, HORZRES), GetDeviceCaps(hMDC, VERTRES), hMDC, 0, 0, SRCCOPY);
+
+	}
+
+	// is系
+	bool isActive()
+	{
+		return GetForegroundWindow() == hWnd;
 	}
 
 	// タイトル変更

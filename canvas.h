@@ -1,6 +1,5 @@
 #pragma once
 
-#include <Windows.h>
 #include <string>
 
 /*
@@ -9,9 +8,9 @@
 template<typename parent> class canvas
 {
 	POINT current;
+	parent* p;
 
 public:
-	parent* p;
 	canvas(parent* p) {
 		this->p = p;
 		current = {0, 0};
@@ -34,27 +33,30 @@ public:
 	}
 
 	// カレントポジション変更
-	canvas pos(int x = INT_MAX, int y = INT_MAX)
+	canvas* pos(int x = INT_MAX, int y = INT_MAX)
 	{
 		this->cx(x);
 		this->cy(y);
 
-		return *this;
+		return this;
 	}
 
 	// 色変更
-	canvas color(COLORREF crColor)
+	canvas* color(COLORREF crColor)
 	{
 		SetDCBrushColor((HDC)*p, crColor);
 		SetDCPenColor((HDC)*p, crColor);
 		SetTextColor((HDC)*p, crColor);
 		SetBkColor((HDC)*p, crColor);
+		SetBkMode((HDC)*p, TRANSPARENT);
 
-		return *this;
+		return this;
 	}
-	canvas color(BYTE r, BYTE g, BYTE b)	{ return color(RGB(r, g, b)); }
-	canvas white()							{ return color(0xFFFFFF); }
-	canvas black()							{ return color(0); }
+	canvas* white()	{ return color(0xFFFFFF); }
+	canvas* black()	{ return color(0); }
+	canvas* rgb(BYTE r = 0, BYTE g = 0, BYTE b = 0) {
+		return color(RGB(r, g, b));
+	}
 
 	void redraw()
 	{
@@ -65,9 +67,7 @@ public:
 	// 文字(単一行)
 	void print(char* text)
 	{
-		SetBkMode((HDC)*p, TRANSPARENT);
 		TextOut((HDC)*p, this->cx(), this->cy(current.y), text, lstrlen(text));
-		SetBkMode((HDC)*p, OPAQUE);
 
 		SIZE size;
 		GetTextExtentPoint32((HDC)*p, text, lstrlen(text), &size);
@@ -96,9 +96,7 @@ public:
 		DrawText((HDC)*p, text, lstrlen(text), &rc, DT_EXPANDTABS | DT_CALCRECT);
 		DrawText((HDC)*p, text, lstrlen(text), &rc, DT_WORDBREAK | DT_EXPANDTABS | DT_CALCRECT);
 
-		SetBkMode((HDC)*p, TRANSPARENT);
 		DrawText((HDC)*p, text, lstrlen(text), &rc, DT_WORDBREAK | DT_EXPANDTABS);
-		SetBkMode((HDC)*p, OPAQUE);
 
 		this->cy(rc.bottom);
 	}
@@ -121,12 +119,12 @@ public:
 	}
 
 	// 点
-	void sPix()
+	void spix()
 	{
-		SetPixel((HDC)*p, current.x, current.y, GetDCPenColor((HDC)*p));
+		SetPixelV((HDC)*p, current.x, current.y, GetDCPenColor((HDC)*p));
 	}
 	// 点 (取得)
-	const COLORREF gPix()
+	const COLORREF gpix()
 	{
 		const COLORREF crColor = GetPixel((HDC)*p, current.x, current.y);
 		color(crColor);
@@ -138,7 +136,7 @@ public:
 	void line(int xFrom, int yFrom, int xTo, int yTo)
 	{
 		MoveToEx((HDC)*p, xFrom, yFrom, NULL);
-		LineTo((HDC)*p, xTo, this->cy(yTo));
+		LineTo((HDC)*p, this->cx(xTo), this->cy(yTo));
 	}
 
 	// 四角形
