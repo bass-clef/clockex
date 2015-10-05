@@ -116,9 +116,8 @@ public:
 
 		SelectObject(hMDC, hMBitmap);
 
-		COLORREF crColor = 0;
-		hBrush = CreateSolidBrush(crColor);
-		hPen = CreatePen(PS_SOLID, 0, crColor);
+		hBrush = (HBRUSH)GetStockObject(DC_BRUSH);
+		hPen = (HPEN)GetStockObject(DC_PEN);
 		SelectObject(hMDC, hBrush);
 		SelectObject(hMDC, hPen);
 		PatBlt(hMDC, 0, 0, rc.right, rc.bottom, WHITENESS);

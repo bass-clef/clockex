@@ -64,16 +64,16 @@ bool app::main()
 // •`‰æ
 int app::draw()
 {
-	cf->color(transColor)->pos(0, 0);
+	cf->color(transColor);
 	cf->fillBox(0, 0, 100, 100);
 
 	cf->color(appColor);
-	cf->pos(0, 0);
-	cf->mesf("%X\n%X", GetDCPenColor(*window), GetDCBrushColor(*window));
-
 	cf->circle(0, 0, width(), height());
-
 	cf->line(0, 0, width(), height());
+
+	cf->black();
+	cf->pos(0, 0);
+	cf->mesf("color : %X\npen:%X", GetDCPenColor(*window), (HPEN)*window);
 
 	cf->redraw();
 
