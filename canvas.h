@@ -7,7 +7,7 @@
 */
 template<typename parent> class canvas
 {
-	POINT current;
+	POINT current = {0, 0}, add = { 0, 0 };
 	parent* p;
 
 public:
@@ -22,21 +22,54 @@ public:
 		if (INT_MAX != x) {
 			current.x = x;
 		}
-		return current.x;
+		return current.x + add.x;
 	}
 	int cy(int y = INT_MAX)
 	{
 		if (INT_MAX != y) {
 			current.y = y;
 		}
-		return current.y;
+		return current.y + add.y;
 	}
+	int addx(int x = INT_MAX)
+	{
+		if (INT_MAX != x) {
+			add.x = x;
+		}
+		return add.x;
+	}
+	int addy(int y = INT_MAX)
+	{
+		if (INT_MAX != y) {
+			add.y = y;
+		}
+		return add.y;
+	}
+	// ‰ÁŽZ
+	int ax(int x = INT_MAX)
+	{
+		return add.x + x;
+	}
+	int ay(int y = INT_MAX)
+	{
+		return add.y + y;
+	}
+
 
 	// ƒJƒŒƒ“ƒgƒ|ƒWƒVƒ‡ƒ“•ÏX
 	canvas* pos(int x = INT_MAX, int y = INT_MAX)
 	{
 		this->cx(x);
 		this->cy(y);
+
+		this->addpos(0, 0);
+
+		return this;
+	}
+	canvas* addpos(int x = INT_MAX, int y = INT_MAX)
+	{
+		this->addx(x);
+		this->addy(y);
 
 		return this;
 	}
@@ -121,44 +154,47 @@ public:
 	// “_
 	void spix()
 	{
-		SetPixelV((HDC)*p, current.x, current.y, GetDCPenColor((HDC)*p));
+		SetPixelV((HDC)*p, this->cx(), this->cy(), GetDCPenColor((HDC)*p));
 	}
 	// “_ (Žæ“¾)
 	const COLORREF gpix()
 	{
-		const COLORREF crColor = GetPixel((HDC)*p, current.x, current.y);
+		const COLORREF crColor = GetPixel((HDC)*p, this->cx(), this->cy());
 		color(crColor);
 		return crColor;
 	}
 
 
 	// ü
-	void line(int xFrom, int yFrom, int xTo, int yTo)
+	void line(int x1, int y1, int x2, int y2)
 	{
-		MoveToEx((HDC)*p, xFrom, yFrom, NULL);
-		LineTo((HDC)*p, this->cx(xTo), this->cy(yTo));
+		MoveToEx((HDC)*p, this->ax(x1), this->ay(y1), NULL);
+		LineTo((HDC)*p, this->cx(x2), this->cy(y2));
 	}
 
 	// ŽlŠpŒ`
 	void box(int x1, int y1, int x2, int y2)
 	{
-		RECT rc = { x1, y1, x2, y2 };
+		RECT rc = { this->ax(x1), this->ay(y1), this->ax(x2), this->ay(y2) };
 		FrameRect((HDC)*p, &rc, (HBRUSH)*p);
 	}
 	// ŽlŠpŒ`(“h‚è‚Â‚Ô‚µ)
 	void fillBox(int x1, int y1, int x2, int y2)
 	{
-		Rectangle((HDC)*p, x1, y1, x2, y2);
+		Rectangle((HDC)*p, this->ax(x1), this->ay(y1), this->ax(x2), this->ay(y2));
 	}
 
 	// ‰~
 	void circle(int x1, int y1, int x2, int y2)
 	{
-		Arc((HDC)*p, x1, y1, x2, y2, x2 - x1, y1, x2 - x1, y1);
+		Arc((HDC)*p,
+			this->ax(x1), this->ay(y1), this->ax(x2), this->ay(y2),
+			this->ax(x2 - x1), this->ay(y1), this->ax(x2 - x1), this->ay(y1)
+		);
 	}
 	// ‰~(“h‚è‚Â‚Ô‚µ)
 	void fillCircle(int x1, int y1, int x2, int y2)
 	{
-		Ellipse((HDC)*p, x1, y1, x2, y2);
+		Ellipse((HDC)*p, this->ax(x1), this->ay(y1), this->ax(x2), this->ay(y2));
 	}
 };

@@ -1,5 +1,8 @@
 
+#define _USE_MATH_DEFINES
+
 #include <Windows.h>
+#include <math.h>
 
 #include "appmain.h"
 
@@ -60,6 +63,10 @@ bool app::main()
 	return false;
 }
 
+inline byte degrad(int deg) {
+	return deg * M_PI / 180;
+}
+
 
 // ï`âÊ
 int app::draw()
@@ -67,13 +74,33 @@ int app::draw()
 	cf->color(transColor);
 	cf->fillBox(0, 0, 100, 100);
 
+	// òg
+	cf->black();
+	cf->fillCircle(0, 0, width(), height());
+
 	cf->color(appColor);
 	cf->circle(0, 0, width(), height());
-	cf->line(0, 0, width(), height());
 
-	cf->black();
-	cf->pos(0, 0);
-	cf->mesf("color : %X\npen:%X", GetDCPenColor(*window), (HPEN)*window);
+	// êj
+	const byte r = width() / 2, minir = r/2, longr = r/4*3, mergin = 5, hwidth = width() / 2, hheight = height() / 2;
+	for (byte angle=0; angle < 12; ++angle)
+	{
+		byte rad = degrad(angle * 30);
+		cf->pos(hwidth + cos(rad)*(r-mergin), hheight + sin(rad)*(r-mergin))->spix();
+	}
+
+	cf->addpos(hwidth, hheight);
+	const byte secAngle = degrad(360.0 / 60000.0 * c.millisecond()),
+		minAngle = degrad(360 / 60 * c.hminute()),
+		hourAngle = degrad(360 / 12 * c.hour());
+
+	cf->line(0, 0, cos(secAngle)*r, sin(secAngle)*r);
+	cf->line(0, 0, cos(minAngle)*minir, sin(minAngle)*minir);
+	cf->line(0, 0, cos(hourAngle)*longr, sin(hourAngle)*longr);
+
+	// ï∂éö
+	cf->white()->pos(0, hheight);
+	cf->mesf("%2d:%02d %2d", c.hour(), c.minute(), c.second());
 
 	cf->redraw();
 

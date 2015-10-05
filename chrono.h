@@ -21,6 +21,26 @@ public:
 
 		return *this;
 	}
+	// ”N
+	int year()
+	{
+		return time.tm_year;
+	}
+	// Œ
+	int mon()
+	{
+		return time.tm_mon;
+	}
+	// “ú
+	int day()
+	{
+		return time.tm_mday;
+	}
+	// —j“ú
+	int dotw()
+	{
+		return time.tm_wday;
+	}
 	// 
 	int hour()
 	{
@@ -31,10 +51,20 @@ public:
 	{
 		return time.tm_min;
 	}
+	// •ª
+	int hminute()
+	{
+		return 11 < time.tm_min ? time.tm_min-12 : time.tm_min ;
+	}
 	// •b
 	int second()
 	{
 		return time.tm_sec;
+	}
+	// ƒ~ƒŠ•b
+	int millisecond()
+	{
+		return std::chrono::duration_cast<std::chrono::duration<int, std::chrono::milliseconds>>(now.time_since_epoch()).count();
 	}
 
 	// ·•ª‹@”\

@@ -20,8 +20,6 @@ int __stdcall WinMain(HINSTANCE hInst, HINSTANCE hPrev, char* lpCmd, int nCmd)
 	bool endFlag = false;
 	const byte endWaitTime = 10;
 
-	window.titlef("%d", GetDeviceCaps((HDC)window, RASTERCAPS));
-
 	// アプリケーションメイン
 	auto appMain = [&](MSG msg) {
 		// 待機
