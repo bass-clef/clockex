@@ -1,19 +1,27 @@
 #pragma once
 
 #include <string>
+#include <vector>
+#include <unordered_map>
 
 /*
 * 描画関係のクラス
 */
 template<typename parent> class canvas
 {
+protected:
 	POINT current = {0, 0}, add = { 0, 0 };
 	parent* p;
 
 public:
 	canvas(parent* p) {
 		this->p = p;
-		current = {0, 0};
+	}
+	canvas() { }
+
+	void init(parent* p)
+	{
+		this->p = p;
 	}
 
 	// カレントポジション セレクタ
@@ -151,6 +159,7 @@ public:
 		delete[] buffer;
 	}
 
+
 	// 点
 	void spix()
 	{
@@ -197,4 +206,58 @@ public:
 	{
 		Ellipse((HDC)*p, this->ax(x1), this->ay(y1), this->ax(x2), this->ay(y2));
 	}
+};
+
+
+template<typename parent, typename nameType> class pen : public canvas<parent>
+{
+	HPEN hOldPen;
+	std::vector<HPEN> pens;
+	std::unordered_map<nameType, int> name;
+	bool changedPen = false;
+
+public:
+	~pen()
+	{
+		while(pens.size())
+		{
+			DeleteObject(pens.back());
+			pens.pop_back();
+		}
+		old();
+	}
+
+	// ペンの作成
+	pen* make(int fnPenStyle, int nWidth, COLORREF crColor, nameType name)
+	{
+		this->name[name] = pens.size();
+		HPEN hPen = CreatePen(fnPenStyle, nWidth, crColor);
+		pens.push_back(hPen);
+
+		if (changedPen) {
+			SelectObject((HDC)*p, hPen);
+		}
+		else {
+			hOldPen = (HPEN)SelectObject((HDC)*p, hPen);
+			changedPen = true;
+		}
+
+		return this;
+	}
+
+	// ペンの適用
+	void use(nameType name)
+	{
+		SelectObject((HDC)*p, pens.at(this->name[name]));
+	}
+
+	// 元のペンを適用
+	void old()
+	{
+		if (!changedPen) {
+			return;
+		}
+		SelectObject((HDC)*p, hOldPen);
+	}
+
 };

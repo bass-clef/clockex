@@ -1,5 +1,10 @@
 #pragma once
 
+#define _USE_MATH_DEFINES
+
+#include <math.h>
+#include <string>
+
 #include "canvas.h"
 #include "form.h"
 
@@ -12,6 +17,8 @@ class app
 
 	SIZE size = { 100, 100 };
 	COLORREF transColor, appColor;
+
+	std::string str;
 
 public:
 	static void getLastError(HWND hWnd = nullptr)
@@ -33,5 +40,31 @@ public:
 	int width() { return size.cx; }
 	int height() { return size.cy; }
 
+
+	// 度からラジアンへの変換
+	inline double degrad(double deg)
+	{
+		return (deg - 90) * M_PI / 180.0;
+	}
+
+	// フォーマットの適用
+	const char* strf(char* format, ...)
+	{
+		va_list argptr;
+
+		va_start(argptr, format);
+
+		int size = _vscprintf(format, argptr) + 1;
+		char* buffer = new char[size];
+		vsprintf_s(buffer, size, format, argptr);
+
+		va_end(argptr);
+
+		str.assign(buffer);
+
+		delete[] buffer;
+
+		return str.data();
+	}
 };
 

@@ -16,6 +16,8 @@ class form
 	HBRUSH	hBrush;			// ブラシ
 	HBITMAP	hMBitmap;		// メモリ用ビットマップ
 
+	bool redrawFlag = false;
+
 	SIZE font;
 
 	chrono time;
@@ -41,7 +43,10 @@ public:
 	}
 
 	// override
-	operator HDC()		{ return hMDC; }
+	operator HDC()		{
+		redrawFlag = true;
+		return hMDC;
+	}
 	operator HWND()		{ return hWnd; }
 	operator HFONT()	{ return hFont; }
 	operator HPEN()		{ return hPen; }
@@ -165,8 +170,11 @@ public:
 	// 再描画
 	void redraw()
 	{
+		if (!redrawFlag) {
+			return;
+		}
+		redrawFlag = false;
 		BitBlt(hDC, 0, 0, GetDeviceCaps(hMDC, HORZRES), GetDeviceCaps(hMDC, VERTRES), hMDC, 0, 0, SRCCOPY);
-
 	}
 
 	// is系

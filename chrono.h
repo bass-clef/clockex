@@ -46,15 +46,15 @@ public:
 	{
 		return time.tm_hour;
 	}
+	// 時
+	int hhour()
+	{
+		return time.tm_hour % 12;
+	}
 	// 分
 	int minute()
 	{
 		return time.tm_min;
-	}
-	// 分
-	int hminute()
-	{
-		return 11 < time.tm_min ? time.tm_min-12 : time.tm_min ;
 	}
 	// 秒
 	int second()
@@ -62,9 +62,16 @@ public:
 		return time.tm_sec;
 	}
 	// ミリ秒
-	int millisecond()
+	int milli()
 	{
-		return std::chrono::duration_cast<std::chrono::duration<int, std::chrono::milliseconds>>(now.time_since_epoch()).count();
+		const auto d = now.time_since_epoch();
+		return d.count() % decltype(d)::period::den / 10000;
+	}
+	// 全部
+	int micsec()
+	{
+		const auto d = now.time_since_epoch();
+		return d.count() % decltype(d)::period::den;
 	}
 
 	// 差分機能
