@@ -127,7 +127,10 @@ public:
 		SelectObject(hMDC, hPen);
 		PatBlt(hMDC, 0, 0, rc.right, rc.bottom, WHITENESS);
 
-		makeFont("ÇlÇr ÉSÉVÉbÉN", 16);
+		font.cx = 16 / 2;
+		font.cy = 16;
+		hFont = (HFONT)GetStockObject(OEM_FIXED_FONT);
+		SelectObject(hMDC, hFont);
 
 		time.setprev();
 	}

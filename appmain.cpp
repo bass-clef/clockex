@@ -50,6 +50,12 @@ void app::init(form* window, canvas<form>* cf, HINSTANCE hInst, UINT nCmd)
 	p.make(PS_SOLID, minuteHand, appColor, "minute");
 	p.old();
 
+	c.gettime();
+	std::time_t t = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+	str.reserve(101);
+	ctime_s((char*)str.c_str(), 100, &t);
+	OutputDebugString(str.data());
+
 	draw();
 }
 
@@ -77,11 +83,11 @@ int app::draw()
 
 	// ˜g
 	cf->black();
-	cf->fillCircle(0, 0, width(), height());
+	cf->fillCircle(1, 1, width()-1, height()-1);
 
 	cf->color(appColor);
 	p.use("hour");
-	cf->circle(2, 2, width()-2, height()-2);
+	cf->circle(1, 1, width()-1, height()-1);
 	p.old();
 
 	// j
@@ -104,12 +110,27 @@ int app::draw()
 	cf->line(0, 0, cos(hourAngle)*rHour, sin(hourAngle)*rHour);
 	p.old();
 
-	// •¶Žš
-	const byte rowHeight = 10;
-	const char* clockString = strf("%2d:%02d %2d", c.hour(), c.minute(), c.second());
-	int clockSize = lstrlen(clockString) * window->getFontSize()->cx;
-	cf->white()->pos(hwidth - clockSize / 2, hheight + window->getFontSize()->cx + rowHeight);
-	cf->mesf((char*)clockString);
+	// “ú•t‚Ì•\Ž¦
+	const byte rowHeight = 2;
+	cf->white()->pos(0, hheight - rowHeight - window->getFontSize()->cy*2);
+	cf->mesfunc([&](RECT* rc, int* len)->bool {
+		rc->right += rc->left = (width() - window->getFontSize()->cx * (*len)) / 2;
+		return false;
+	}, "%d", c.year());
+	cf->mesfunc([&](RECT* rc, int* len)->bool {
+		rc->right += rc->left = (width() - window->getFontSize()->cx * (*len)) / 2;
+		return false;
+	}, "%dŒŽ%d“ú", c.mon(), c.day());
+
+	cf->white()->pos(0, hheight + rowHeight);
+	cf->mesfunc([&](RECT* rc, int* len)->bool {
+		rc->right += rc->left = (width() - window->getFontSize()->cx * (*len)) / 2;
+		return false;
+	}, "%s", c.toName(c.dotw()));
+	cf->mesfunc([&](RECT* rc, int* len)->bool {
+		rc->right += rc->left = (width() - window->getFontSize()->cx * (*len)) / 2;
+		return false;
+	}, "%d:%02d %2d", c.hour(), c.minute(), c.second());
 
 
 	cf->redraw();

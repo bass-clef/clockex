@@ -130,14 +130,15 @@ public:
 
 		delete[] buffer;
 	}
-	// 文字(自動拡張)
+	// 文字(自動拡張,ユーザー変形付き)
 	void mes(char* text)
 	{
 		RECT rc = {this->cx(), this->cy(), 0, 0};
-		DrawText((HDC)*p, text, lstrlen(text), &rc, DT_EXPANDTABS | DT_CALCRECT);
-		DrawText((HDC)*p, text, lstrlen(text), &rc, DT_WORDBREAK | DT_EXPANDTABS | DT_CALCRECT);
+		int len = lstrlen(text);
+		DrawText((HDC)*p, text, len, &rc, DT_EXPANDTABS | DT_CALCRECT);
+		DrawText((HDC)*p, text, len, &rc, DT_WORDBREAK | DT_EXPANDTABS | DT_CALCRECT);
 
-		DrawText((HDC)*p, text, lstrlen(text), &rc, DT_WORDBREAK | DT_EXPANDTABS);
+		DrawText((HDC)*p, text, len, &rc, DT_WORDBREAK | DT_EXPANDTABS);
 
 		this->cy(rc.bottom);
 	}
@@ -157,6 +158,32 @@ public:
 		this->mes(buffer);
 
 		delete[] buffer;
+	}
+	// 関数,フォーマット付き
+	template<typename callfunc>
+	void mesfunc(callfunc func, char* format, ...)
+	{
+		va_list argptr;
+
+		va_start(argptr, format);
+
+		int size = _vscprintf(format, argptr) + 1;
+		char* buffer = new char[size];
+		vsprintf_s(buffer, size, format, argptr);
+
+		va_end(argptr);
+
+		RECT rc = { this->cx(), this->cy(), 0, 0 };
+		int len = lstrlen(buffer);
+		DrawText((HDC)*p, buffer, len, &rc, DT_EXPANDTABS | DT_CALCRECT);
+		DrawText((HDC)*p, buffer, len, &rc, DT_WORDBREAK | DT_EXPANDTABS | DT_CALCRECT);
+
+		if (func(&rc, &len)) return;
+
+		DrawText((HDC)*p, buffer, len, &rc, DT_WORDBREAK | DT_EXPANDTABS);
+
+		delete[] buffer;
+		this->cy(rc.bottom);
 	}
 
 

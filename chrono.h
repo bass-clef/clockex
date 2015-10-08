@@ -4,6 +4,8 @@
 #include <ctime>
 #include <time.h>
 
+#define TM_ADD_YAER		1900
+#define TM_ADD_MONTH	1
 
 class chrono
 {
@@ -24,12 +26,12 @@ public:
 	// ”N
 	int year()
 	{
-		return time.tm_year;
+		return time.tm_year + TM_ADD_YAER;
 	}
 	// Œ
 	int mon()
 	{
-		return time.tm_mon;
+		return time.tm_mon + TM_ADD_MONTH;
 	}
 	// “ú
 	int day()
@@ -71,6 +73,19 @@ public:
 	{
 		const auto d = now.time_since_epoch();
 		return d.count() % decltype(d)::period::den;
+	}
+	// —j“ú‚ğ‰pš‚É•ÏŠ·
+	static const char* toName(int dotw)
+	{
+		switch (dotw % 7) {
+		case 0: return "Sunday";
+		case 1: return "Monday";
+		case 2: return "Tuesday";
+		case 3: return "Wednesday";
+		case 4: return "Thursday";
+		case 5: return "Friday";
+		case 6: return "Saturday";
+		}
 	}
 
 	// ·•ª‹@”\
