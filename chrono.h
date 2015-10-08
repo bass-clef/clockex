@@ -64,11 +64,10 @@ public:
 	// ƒ~ƒŠ•b
 	int milli()
 	{
-		const auto d = now.time_since_epoch();
-		return d.count() % decltype(d)::period::den / 10000;
+		return micsec() / 10000;
 	}
 	// ‘S•”
-	int micsec()
+	long long micsec()
 	{
 		const auto d = now.time_since_epoch();
 		return d.count() % decltype(d)::period::den;

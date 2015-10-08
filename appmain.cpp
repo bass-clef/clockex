@@ -80,10 +80,12 @@ int app::draw()
 	cf->fillCircle(0, 0, width(), height());
 
 	cf->color(appColor);
-	cf->circle(0, 0, width(), height());
+	p.use("hour");
+	cf->circle(2, 2, width()-2, height()-2);
+	p.old();
 
 	// êj
-	const double r = width() / 2, rHour = r/2, rMinute = r/4*3, mergin = 10, hwidth = width() / 2, hheight = height() / 2;
+	const double r = width() / 2, rHour = r/2, rMinute = r/4*3, mergin = 15, hwidth = width() / 2, hheight = height() / 2;
 	for (byte angle=0; angle < 12; ++angle)
 	{
 		double rad = degrad((double)angle * 30);
@@ -103,9 +105,10 @@ int app::draw()
 	p.old();
 
 	// ï∂éö
+	const byte rowHeight = 10;
 	const char* clockString = strf("%2d:%02d %2d", c.hour(), c.minute(), c.second());
 	int clockSize = lstrlen(clockString) * window->getFontSize()->cx;
-	cf->white()->pos(hwidth - clockSize / 2, hheight + window->getFontSize()->cx + mergin);
+	cf->white()->pos(hwidth - clockSize / 2, hheight + window->getFontSize()->cx + rowHeight);
 	cf->mesf((char*)clockString);
 
 
