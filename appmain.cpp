@@ -34,31 +34,32 @@ void app::init(form* window, canvas<form>* cf, HINSTANCE hInst, UINT nCmd)
 	p.init(window);
 
 	window->makeClass(hInst, "clockex", wndProc);
-	window->makeWindow(hInst, nCmd, "clockex", "clockex", width(), height(),
+	window->makeWindow(hInst, nCmd, "clockex", "clockex", initwidth(), initheight(),
 		WS_POPUP | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN,
 		WS_EX_TOPMOST | WS_EX_LAYERED, 0, 0);
 
 
+	// オブジェクトで使うものを定義, ウィンドウの透過
 	appColor = 0x3399FF;
 	transColor = RGB(254, 254, 254);
 
 	window->makeFont("ＭＳ ゴシック", 14);
-	SetLayeredWindowAttributes((HWND)*window, transColor, 0xB0, LWA_COLORKEY | LWA_ALPHA);
+	SetLayeredWindowAttributes((HWND)*window, transColor, 0xB0, LWA_ALPHA | LWA_COLORKEY);
 
 	const int hourHand = 3, minuteHand = 2;
 	p.make(PS_SOLID, hourHand, appColor, "hour");
 	p.make(PS_SOLID, minuteHand, appColor, "minute");
 	p.old();
 
-	c.gettime();
-	std::time_t t = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-	str.reserve(101);
-	ctime_s((char*)str.c_str(), 100, &t);
-	OutputDebugString(str.data());
-
 	draw();
 }
 
+
+struct {
+	void func() {
+
+	}
+};
 
 
 // メイン
@@ -78,10 +79,13 @@ bool app::main()
 // 描画
 int app::draw()
 {
+	cf->basepos(0, 0);
 	cf->color(transColor);
-	cf->fillBox(0, 0, 100, 100);
+	cf->fillBox(0, 0, initwidth(), initheight());
+	cf->color(appColor)->box(0, 0, initwidth(), initheight());
 
 	// 枠
+	cf->basepos(50, 50);
 	cf->black();
 	cf->fillCircle(1, 1, width()-1, height()-1);
 
@@ -89,6 +93,7 @@ int app::draw()
 	p.use("hour");
 	cf->circle(1, 1, width()-1, height()-1);
 	p.old();
+
 
 	// 針
 	const double r = width() / 2, rHour = r/2, rMinute = r/4*3, mergin = 15, hwidth = width() / 2, hheight = height() / 2;
@@ -112,27 +117,23 @@ int app::draw()
 
 	// 日付の表示
 	const byte rowHeight = 2;
-	cf->white()->pos(0, hheight - rowHeight - window->getFontSize()->cy*2);
-	cf->mesfunc([&](RECT* rc, int* len)->bool {
-		rc->right += rc->left = (width() - window->getFontSize()->cx * (*len)) / 2;
+	const auto func = [&](RECT* rc, int* len)->bool {
+		int x = (width() - window->getFontSize()->cx * (*len)) / 2;
+		rc->left += x;
+		rc->right += x;
 		return false;
-	}, "%d", c.year());
-	cf->mesfunc([&](RECT* rc, int* len)->bool {
-		rc->right += rc->left = (width() - window->getFontSize()->cx * (*len)) / 2;
-		return false;
-	}, "%d月%d日", c.mon(), c.day());
+	};
+
+	cf->white()->pos(0, hheight - rowHeight - window->getFontSize()->cy * 2);
+	cf->mesfunc(func, "%d", c.year());
+	cf->mesfunc(func, "%d月%d日", c.mon(), c.day());
+	cf->mesf("%d", window->getFontSize()->cy);
 
 	cf->white()->pos(0, hheight + rowHeight);
-	cf->mesfunc([&](RECT* rc, int* len)->bool {
-		rc->right += rc->left = (width() - window->getFontSize()->cx * (*len)) / 2;
-		return false;
-	}, "%s", c.toName(c.dotw()));
-	cf->mesfunc([&](RECT* rc, int* len)->bool {
-		rc->right += rc->left = (width() - window->getFontSize()->cx * (*len)) / 2;
-		return false;
-	}, "%d:%02d %2d", c.hour(), c.minute(), c.second());
+	cf->mesfunc(func, "%s", c.toName(c.dotw()));
+	cf->mesfunc(func, "%d:%02d %2d", c.hour(), c.minute(), c.second());
 
-
+	cf->basepos(0, 0);
 	cf->redraw();
 
 	return false;

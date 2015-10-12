@@ -5,16 +5,19 @@
 #include <unordered_map>
 
 /*
-* 描画関係のクラス
-*/
+ * gui描画関係を簡単に使えるようにするクラス
+ *
+ * parent は各種ウィンドウオブジェクトハンドルの演算子オーバーロードを持っていること
+ */
 template<typename parent> class canvas
 {
 protected:
-	POINT current = {0, 0}, add = { 0, 0 };
+	POINT current = { 0, 0 }, add = { 0, 0 }, base = { 0, 0 };
 	parent* p;
 
 public:
-	canvas(parent* p) {
+	canvas(parent* p)
+	{
 		this->p = p;
 	}
 	canvas() { }
@@ -24,21 +27,37 @@ public:
 		this->p = p;
 	}
 
-	// カレントポジション セレクタ
+	// 起点位置 アクセサ
+	int bx(int x = INT_MAX)
+	{
+		if (INT_MAX != x) {
+			base.x = x;
+		}
+		return base.x;
+	}
+	int by(int y = INT_MAX)
+	{
+		if (INT_MAX != y) {
+			base.y = y;
+		}
+		return base.y;
+	}
+	// カレントポジション アクセサ
 	int cx(int x = INT_MAX)
 	{
 		if (INT_MAX != x) {
 			current.x = x;
 		}
-		return current.x + add.x;
+		return current.x + add.x + base.x;
 	}
 	int cy(int y = INT_MAX)
 	{
 		if (INT_MAX != y) {
 			current.y = y;
 		}
-		return current.y + add.y;
+		return current.y + add.y + base.y;
 	}
+	// 一時加算 アクセサ
 	int addx(int x = INT_MAX)
 	{
 		if (INT_MAX != x) {
@@ -53,18 +72,26 @@ public:
 		}
 		return add.y;
 	}
-	// 加算
 	int ax(int x = INT_MAX)
 	{
-		return add.x + x;
+		return base.x + add.x + x;
 	}
 	int ay(int y = INT_MAX)
 	{
-		return add.y + y;
+		return base.y + add.y + y;
 	}
 
 
-	// カレントポジション変更
+	// 位置変更
+	canvas* basepos(int x = INT_MAX, int y = INT_MAX)
+	{
+		this->bx(x);
+		this->by(y);
+
+		this->pos(0, 0);
+
+		return this;
+	}
 	canvas* pos(int x = INT_MAX, int y = INT_MAX)
 	{
 		this->cx(x);
@@ -101,7 +128,7 @@ public:
 
 	void redraw()
 	{
-		p->redraw();
+		p->redraw(this->bx(), this->by());
 	}
 
 
@@ -140,7 +167,7 @@ public:
 
 		DrawText((HDC)*p, text, len, &rc, DT_WORDBREAK | DT_EXPANDTABS);
 
-		this->cy(rc.bottom);
+		this->cy(rc.bottom - rc.top);
 	}
 	// 文字(フォーマット付き)
 	void mesf(char* format, ...)
@@ -183,7 +210,7 @@ public:
 		DrawText((HDC)*p, buffer, len, &rc, DT_WORDBREAK | DT_EXPANDTABS);
 
 		delete[] buffer;
-		this->cy(rc.bottom);
+		this->cy(rc.bottom - rc.top);
 	}
 
 

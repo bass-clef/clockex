@@ -3,7 +3,7 @@
 #include "chrono.h"
 
 /*
- * winフォームの作成クラス
+ * windowsのgui作成クラス
  */
 class form
 {
@@ -42,7 +42,7 @@ public:
 		ReleaseDC(hWnd, hDC);
 	}
 
-	// override
+	// overload
 	operator HDC()		{
 		redrawFlag = true;
 		return hMDC;
@@ -54,7 +54,7 @@ public:
 	operator HBITMAP()	{ return hMBitmap; }
 
 
-	// メンバセレクタ
+	// メンバアクセサ
 	MSG* getMsg()
 	{
 		return &msg;
@@ -127,7 +127,7 @@ public:
 		SelectObject(hMDC, hPen);
 		PatBlt(hMDC, 0, 0, rc.right, rc.bottom, WHITENESS);
 
-		font.cx = 16 / 2;
+		font.cx = 8;
 		font.cy = 16;
 		hFont = (HFONT)GetStockObject(OEM_FIXED_FONT);
 		SelectObject(hMDC, hFont);
@@ -171,13 +171,13 @@ public:
 
 
 	// 再描画
-	void redraw()
+	void redraw(int x = 0, int y = 0)
 	{
 		if (!redrawFlag) {
 			return;
 		}
 		redrawFlag = false;
-		BitBlt(hDC, 0, 0, GetDeviceCaps(hMDC, HORZRES), GetDeviceCaps(hMDC, VERTRES), hMDC, 0, 0, SRCCOPY);
+		BitBlt(hDC, x, y, GetDeviceCaps(hMDC, HORZRES)-x, GetDeviceCaps(hMDC, VERTRES)-y, hMDC, x, y, SRCCOPY);
 	}
 
 	// is系

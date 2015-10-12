@@ -15,7 +15,7 @@ class app
 	form* window;
 	canvas<form>* cf;
 
-	SIZE size = { 100, 100 };
+	SIZE size = { 100, 100 }, initsize = { 200, 200 };
 	COLORREF transColor, appColor;
 
 	std::string str;
@@ -39,6 +39,9 @@ public:
 
 	int width() { return size.cx; }
 	int height() { return size.cy; }
+	void windowSize(int width, int height) { size.cx = width; size.cy = height; }
+	int initwidth() { return initsize.cx; }
+	int initheight() { return initsize.cy; }
 
 
 	// “x‚©‚çƒ‰ƒWƒAƒ“‚Ö‚Ì•ÏŠ·
