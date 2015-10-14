@@ -16,7 +16,6 @@ class app
 	canvas<form>* cf;
 
 	SIZE size = { 100, 100 }, initsize = { 200, 200 };
-	COLORREF transColor, appColor;
 
 	std::string str;
 
@@ -48,6 +47,11 @@ public:
 	inline double degrad(double deg)
 	{
 		return (deg - 90) * M_PI / 180.0;
+	}
+	// ラジアンから度への変換
+	inline double raddeg(double rad)
+	{
+		return rad * 180.0 / M_PI;
 	}
 
 	// フォーマットの適用

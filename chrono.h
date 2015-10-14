@@ -64,7 +64,7 @@ public:
 		return time.tm_sec;
 	}
 	// ƒ~ƒŠ•b
-	int milli()
+	long long milli()
 	{
 		return micsec() / 10000;
 	}
@@ -84,8 +84,8 @@ public:
 		case 3: return "Wednesday";
 		case 4: return "Thursday";
 		case 5: return "Friday";
-		case 6: return "Saturday";
 		}
+		return "Saturday";
 	}
 
 	// ·•ª‹@”\

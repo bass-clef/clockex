@@ -37,7 +37,7 @@ int __stdcall WinMain(HINSTANCE hInst, HINSTANCE hPrev, char* lpCmd, int nCmd)
 	};
 
 	// 終了コード来るまで待機
-	while (window.messageLoop(appMain)) Sleep(1);
+	while (window.messageLoop(appMain, 480)) Sleep(1);
 
 	return 0;
 }

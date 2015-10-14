@@ -2,7 +2,6 @@
 
 #include <string>
 #include <vector>
-#include <unordered_map>
 
 /*
  * gui描画関係を簡単に使えるようにするクラス
@@ -262,13 +261,16 @@ public:
 };
 
 
+
+#include <unordered_map>
+
 // ペンを簡単に扱えるようにするクラス
 template<typename parent, typename nameType> class pen
 {
 	parent* p;
 	HPEN hOldPen;
 	std::vector<HPEN> pens;
-	std::unordered_map<nameType, int> name;
+	std::unordered_map<nameType, size_t> name;
 	bool changedPen = false;
 
 public:
@@ -336,7 +338,7 @@ template<typename parent, typename nameType> class image
 	Gdiplus::Graphics* gdi;
 
 	std::vector<Gdiplus::Bitmap*> bitmaps;
-	std::unordered_map<nameType, int> name;
+	std::unordered_map<nameType, size_t> name;
 
 
 private:
@@ -445,11 +447,9 @@ public:
 	{
 		gdi->DrawImage(bitmaps[this->name[name]], x, y);
 	}
-	void draw(nameType name, int x = 0, int y = 0, int width = INT_MAX, int height = INT_MAX, int srcx = 0, int srcy = 0)
+	void draw(nameType name, int x, int y, int width, int height, int srcx = 0, int srcy = 0)
 	{
-		int imageWidth = INT_MAX != width ? width : this->width();
-		int imageHeight = INT_MAX != height ? height : this->height();
-		gdi->DrawImage(bitmaps[this->name[name]], x, y, srcx, srcy, imageWidth, imageHeight);
+		gdi->DrawImage(bitmaps[this->name[name]], x, y, srcx, srcy, width, height);
 	}
 };
 
