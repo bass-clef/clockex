@@ -98,8 +98,7 @@ public:
 	// ·•ª
 	long long diff()
 	{
-		auto dur = std::chrono::system_clock::now() - prev;
-		return std::chrono::duration_cast<std::chrono::milliseconds>(dur).count();
+		return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - prev).count();
 	}
 
 

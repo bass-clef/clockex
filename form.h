@@ -43,10 +43,7 @@ public:
 	}
 
 	// overload
-	operator HDC()		{
-		redrawFlag = true;
-		return hMDC;
-	}
+	operator HDC()		{ return hMDC; }
 	operator HWND()		{ return hWnd; }
 	operator HFONT()	{ return hFont; }
 	operator HPEN()		{ return hPen; }
@@ -62,6 +59,10 @@ public:
 	SIZE* getFontSize()
 	{
 		return &font;
+	}
+	HDC getDC()
+	{
+		return hDC;
 	}
 
 
@@ -169,16 +170,6 @@ public:
 		return appMain(msg);
 	}
 
-
-	// çƒï`âÊ
-	void redraw(int x = 0, int y = 0)
-	{
-		if (!redrawFlag) {
-			return;
-		}
-		redrawFlag = false;
-		BitBlt(hDC, x, y, GetDeviceCaps(hMDC, HORZRES)-x, GetDeviceCaps(hMDC, VERTRES)-y, hMDC, x, y, SRCCOPY);
-	}
 
 	// isån
 	bool isActive()

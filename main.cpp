@@ -2,8 +2,6 @@
 #include <Windows.h>
 
 #include "appmain.h"
-#include "canvas.h"
-#include "form.h"
 
 
 
@@ -18,24 +16,28 @@ int __stdcall WinMain(HINSTANCE hInst, HINSTANCE hPrev, char* lpCmd, int nCmd)
 	// 終了から遅延させる
 	short endCount = 0;
 	bool endFlag = false;
-	const byte endWaitTime = 10;
+	const byte endWaitTime = 100;
 
 	// アプリケーションメイン
-	auto appMain = [&](MSG msg) {
+	const auto appMain = [&](MSG msg) {
 		// 待機
 		if (app.main()) {
 			endFlag = true;
 		}
-		endCount += endFlag;
-		if (endWaitTime < endCount) {
-			return false;
+
+		if (endFlag) {
+			endCount++;
+			if (endWaitTime < endCount) {
+				return false;
+			}
 		}
 
+		Sleep(1);
 		return true;
 	};
 
 	// 終了コード来るまで待機
-	while (window.messageLoop(appMain, 30)) Sleep(1);
+	while (window.messageLoop(appMain)) Sleep(1);
 
 	return 0;
 }
