@@ -6,6 +6,44 @@
 #pragma comment(lib, "WindowsCodecs.lib")
 #pragma warning(disable:4244)
 
+
+const enum TOOL { T_EXIT, T_ADD, T_OPTION, };
+struct tooltip {
+	std::string iconName;
+	int type;
+	void* pointer;
+};
+
+// ファイル単位変数
+namespace {
+	// 定数
+	const float openingCountMax = 60, resizeMax = 50,	// ツールの表示速度
+		angleMinute = 360 / 60, angleHour = 360 / 12,	// 長針,短針の1角度
+		rIcons = 75,									// アイコンの表示する距離
+		mergin = 15;
+	const byte rowHeight = 2;
+
+	// 変数
+	chrono c;					// 時計
+	pen<form, std::string> p;	// ペン管理
+	image<form, std::string> imgs;	// 画像管理
+	std::vector<tooltip> tooltips;	// ツールチップ管理
+
+	COLORREF transColor, backColor, appColor;
+	POINT mousePos;
+	RECT windowPos;
+	bool opening = true, opened = true;
+	float basex = 50, basey = 50, openingCount = 0,		// 描画始点
+		secAngle, minAngle, hourAngle,					// 時,分,秒 針の角度
+		mouseAngle,										// 中心とカーソルとの角度
+		r, rHour, rMinute,								// 針の長さ
+		hwidth, hheight;								// ウィンドウ半分のサイズ
+
+}
+
+
+
+// WinMsgコールバック
 LRESULT __stdcall WndProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp)
 {
 	switch (uMsg) {
@@ -20,30 +58,6 @@ LRESULT __stdcall WndProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp)
 	return DefWindowProc(hWnd, uMsg, wp, lp);
 }
 
-
-// ファイル単位変数
-namespace {
-	// 定数
-	const float openingCountMax = 60, resizeMax = 50,	// ツールの表示速度
-		angleMinute = 360 / 60, angleHour = 360 / 12,	// 長針,短針の1角度
-		mergin = 15;
-	const byte rowHeight = 2;
-
-	// 変数
-	chrono c;					// 時計
-	pen<form, std::string> p;	// ペン使用しやすく
-	image<form, std::string> img;
-
-	COLORREF transColor, backColor, appColor;
-	POINT mousePos;
-	RECT windowPos;
-	bool opening = true, opened = true;
-	float basex = 50, basey = 50, openingCount = 0,		// 描画始点
-		secAngle, minAngle, hourAngle,					// 時,分,秒 針の角度
-		mouseAngle,										// 中心とカーソルとの角度
-		r, rHour, rMinute,								// 針の長さ
-		hwidth, hheight;								// ウィンドウ半分のサイズ
-}
 
 
 // 初期化
@@ -61,10 +75,9 @@ void app::init(form* window, canvas<form>* cf, HINSTANCE hInst, UINT nCmd)
 
 
 	// オブジェクトで使うものを定義, ウィンドウの透過
-	transColor = RGB(1, 1, 1);
+	transColor = 0xFEFEFE;
 	appColor = 0x3399FF;
 	backColor = RGB(GetRValue(appColor)/5, GetGValue(appColor)/5, GetBValue(appColor)/5);
-	
 
 	window->makeFont("ＭＳ ゴシック", 14);
 	SetLayeredWindowAttributes((HWND)*window, transColor, 0xB0, LWA_ALPHA | LWA_COLORKEY);
@@ -75,8 +88,17 @@ void app::init(form* window, canvas<form>* cf, HINSTANCE hInst, UINT nCmd)
 	p.old();
 
 	// 画像の読み込み
-	img.init(window);
-	img.load("icons/glyphicons-208-remove-2.png", "close");
+	imgs.init(window);
+	imgs.load("icons/glyphicons-208-remove-2.png", "close");
+	imgs.load("icons/glyphicons-433-plus.png", "add");
+	imgs.load("icons/glyphicons-137-cogwheel.png", "option");
+
+	// ツールチップ読み込み
+	tooltips.resize(3);
+	tooltips[0] = { "close", TOOL::T_EXIT, nullptr };
+	tooltips[1] = { "add", TOOL::T_ADD, nullptr };
+	tooltips[2] = { "option", TOOL::T_OPTION, nullptr };
+
 }
 
 
@@ -175,7 +197,7 @@ int app::draw()
 	// 中央揃え用
 	int x;
 	auto centeringFunc = [&](RECT* rc, int* len)->bool {
-		x = (width() - window->getFontSize()->cx * (*len)) / 2;
+		x = hwidth - window->getFontSize()->cx * (*len) / 2;
 		rc->left += x;
 		rc->right += x;
 		return false;
@@ -190,8 +212,19 @@ int app::draw()
 	cf->mesfunc(centeringFunc, "%s", c.toName(c.dotw()));
 	cf->mesfunc(centeringFunc, "%d:%02d %2d", c.hour(), c.minute(), c.second());
 
-	img.draw("close", 0, 0);
+	// ツールチップの表示
+	if (opening || opened) {
+		float angleIcons = M_PI * 2 / tooltips.size();
+		int count = 0;
+		for (auto it = tooltips.begin(); it != tooltips.end(); it++) {
+			imgs.drawCenter(it->iconName,
+				cf->bx() + hwidth + cos(angleIcons*count - M_PI_2) * rIcons,
+				cf->by() + hheight + sin(angleIcons*count - M_PI_2) * rIcons);
+			count++;
+		}
+	}
 
+	// 裏画面反映
 	if (opening) {
 		cf->redraw();
 	} else {

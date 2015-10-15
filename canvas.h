@@ -451,5 +451,9 @@ public:
 	{
 		gdi->DrawImage(bitmaps[this->name[name]], x, y, srcx, srcy, width, height);
 	}
+	void drawCenter(nameType name, int x = 0, int y = 0)
+	{
+		gdi->DrawImage(bitmaps[this->name[name]], x-width(name)/2, y-height(name)/2);
+	}
 };
 
