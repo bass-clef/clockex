@@ -76,7 +76,7 @@ public:
 	}
 
 
-	// 位置変更
+	// 基点ポジション変更 (カレントポジション,加算ポジションを初期化)
 	canvas* basepos(int x = INT_MAX, int y = INT_MAX)
 	{
 		this->bx(x);
@@ -86,6 +86,7 @@ public:
 
 		return this;
 	}
+	// カレントポジション変更 (加算ポジションを初期化)
 	canvas* pos(int x = INT_MAX, int y = INT_MAX)
 	{
 		this->cx(x);
@@ -95,6 +96,7 @@ public:
 
 		return this;
 	}
+	// 加算ポジション変更
 	canvas* addpos(int x = INT_MAX, int y = INT_MAX)
 	{
 		this->addx(x);
@@ -257,6 +259,21 @@ public:
 	void fillCircle(int x1, int y1, int x2, int y2)
 	{
 		Ellipse((HDC)*p, this->ax(x1), this->ay(y1), this->ax(x2), this->ay(y2));
+	}
+
+	// 円弧(角度)
+	void arc(int x, int y, long r, float startAngle, float sweepAngle)
+	{
+		AngleArc((HDC)*p, this->ax(x), this->ay(y), r, startAngle, sweepAngle);
+	}
+
+	// 扇形(塗りつぶし) ※x1,y1,x2,y2 にはbaseposは加算されない
+	void fillPie(int x1, int y1, int x2, int y2, int xStartRadial, int yStartRadial, int xSweepRadial, int ySweepRadial)
+	{
+		Pie((HDC)*p,
+			this->ax(x1), this->ay(y1), this->ax(x2), this->ay(y2),
+			this->ax(xStartRadial), this->ay(yStartRadial), this->ax(xSweepRadial), this->ax(ySweepRadial)
+		);
 	}
 };
 

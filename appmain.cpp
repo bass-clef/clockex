@@ -7,7 +7,7 @@
 #pragma warning(disable:4244)
 
 
-const enum TOOL { T_EXIT, T_ADD, T_OPTION, };
+const enum TOOL { T_NOTSELECTED = -1, T_EXIT, T_ADD, T_OPTION, };
 struct tooltip {
 	std::string iconName;
 	int type;
@@ -19,7 +19,7 @@ namespace {
 	// 定数
 	const float openingCountMax = 60, resizeMax = 50,	// ツールの表示速度
 		angleMinute = 360 / 60, angleHour = 360 / 12,	// 長針,短針の1角度
-		rIcons = 75,									// アイコンの表示する距離
+		rInitIcons  = 15,								// アイコンの表示する距離
 		mergin = 15;
 	const byte rowHeight = 2;
 
@@ -29,16 +29,16 @@ namespace {
 	image<form, std::string> imgs;	// 画像管理
 	std::vector<tooltip> tooltips;	// ツールチップ管理
 
-	COLORREF transColor, backColor, appColor;
+	COLORREF transColor, backColor, appColor, selBackColor;
 	POINT mousePos;
 	RECT windowPos;
-	bool opening = true, opened = true;
+	bool opening = true, opened = false;
 	float basex = 50, basey = 50, openingCount = 0,		// 描画始点
 		secAngle, minAngle, hourAngle,					// 時,分,秒 針の角度
-		mouseAngle,										// 中心とカーソルとの角度
-		r, rHour, rMinute,								// 針の長さ
+		mouseAngle, iconsAngle,							// 中心とカーソルとの角度, ツールチップの表示間隔角度
+		r, rHour, rMinute, rIcons = 75,					// 針の長さ
 		hwidth, hheight;								// ウィンドウ半分のサイズ
-
+	int selId;											// 選択されたツールチップID
 }
 
 
@@ -77,7 +77,8 @@ void app::init(form* window, canvas<form>* cf, HINSTANCE hInst, UINT nCmd)
 	// オブジェクトで使うものを定義, ウィンドウの透過
 	transColor = 0xFEFEFE;
 	appColor = 0x3399FF;
-	backColor = RGB(GetRValue(appColor)/5, GetGValue(appColor)/5, GetBValue(appColor)/5);
+	backColor = RGB(GetRValue(appColor) / 5, GetGValue(appColor) / 5, GetBValue(appColor) / 5);
+	selBackColor = RGB(GetRValue(appColor) / 2, GetGValue(appColor) / 2, GetBValue(appColor) / 2);
 
 	window->makeFont("ＭＳ ゴシック", 14);
 	SetLayeredWindowAttributes((HWND)*window, transColor, 0xB0, LWA_ALPHA | LWA_COLORKEY);
@@ -96,8 +97,8 @@ void app::init(form* window, canvas<form>* cf, HINSTANCE hInst, UINT nCmd)
 	// ツールチップ読み込み
 	tooltips.resize(3);
 	tooltips[0] = { "close", TOOL::T_EXIT, nullptr };
-	tooltips[1] = { "add", TOOL::T_ADD, nullptr };
-	tooltips[2] = { "option", TOOL::T_OPTION, nullptr };
+	tooltips[1] = { "option", TOOL::T_OPTION, nullptr };
+	tooltips[2] = { "add", TOOL::T_ADD, nullptr };
 
 }
 
@@ -128,6 +129,7 @@ bool app::main()
 			basey = r;
 			windowSize(initwidth() - outr, initheight() - outr);
 		} else {
+			rIcons = rInitIcons + r;
 			basex = 50.0-r;
 			basey = 50.0-r;
 			windowSize(initwidth() - 100 + outr, initheight() - 100 + outr);
@@ -138,6 +140,33 @@ bool app::main()
 	GetCursorPos(&mousePos);
 	GetWindowRect(*window, &windowPos);
 	mouseAngle = atan2(windowPos.top + initheight() / 2 - mousePos.y, windowPos.left + initwidth() / 2 - mousePos.x) + M_PI;
+
+	// ツール選択
+	if (
+		(!opened && opening || opened && !opening) &&
+		(sqrt(pow(windowPos.left + hwidth - mousePos.x, 2) + powf(windowPos.top + hheight - mousePos.y, 2)) < r)
+		)
+	{
+		float prevAngle = -M_PI_2, a = 0, mouseModAngle = 0;
+		int count = 0;
+		iconsAngle= M_PI * 2 / tooltips.size();
+		selId = 0;
+
+		for (auto it = tooltips.begin(); it != tooltips.end(); it++) {
+			// チップ
+			a = fmod(iconsAngle*count + M_PI + M_PI_2, M_PI * 2);
+			mouseModAngle = fmod(M_PI * 2 - mouseAngle + a + iconsAngle/ 2, M_PI * 2);
+			if (0 < mouseModAngle && mouseModAngle < fmod(M_PI * 2 - prevAngle + a, M_PI * 2)) {
+				selId = count;
+			}
+
+			prevAngle = a;
+			count++;
+		}
+	} else if (TOOL::T_NOTSELECTED != selId) {
+		selId = TOOL::T_NOTSELECTED;
+	}
+
 	
 	// 現在時刻の取得
 	c.gettime();
@@ -146,7 +175,7 @@ bool app::main()
 	hourAngle = degrad(angleHour * c.hhour() + angleMinute / 12.0 * c.minute());
 
 	// 描画
-	r = width() / 2 - 2;
+	r = width() / 2;
 	rHour = r / 2;
 	rMinute = r / 4 * 3;
 	hwidth = width() / 2;
@@ -160,11 +189,9 @@ bool app::main()
 // 描画
 int app::draw()
 {
-	if (opening) {
-		cf->basepos(0, 0);
-		cf->color(transColor);
-		cf->fillBox(0, 0, initwidth(), initheight());
-	}
+	cf->basepos(0, 0);
+	cf->color(transColor);
+	cf->fillBox(0, 0, initwidth(), initheight());
 
 	// 枠
 	cf->basepos(basex, basey);
@@ -176,22 +203,62 @@ int app::draw()
 	cf->circle(1, 1, width() - 1, height() - 1);
 	p.old();
 
+	// ツールの表示
+	if (!opened && opening || opened && !opening) {
+		float prevAngle = -M_PI_2, a = 0, mouseModAngle = 0;
+		int count = 0;
+
+		if (TOOL::T_NOTSELECTED != selId) {
+			// 選択肢
+			cf->color(selBackColor)->fillPie(
+				mergin, mergin, width() - mergin, height() - mergin,
+				r + cos(iconsAngle* selId - M_PI_2 - iconsAngle / 2)*r, r + sin(iconsAngle* selId - M_PI_2 - iconsAngle / 2)*r,
+				r + cos(iconsAngle* selId - M_PI_2 + iconsAngle / 2)*r, r + sin(iconsAngle* selId - M_PI_2 + iconsAngle / 2)*r
+				);
+
+			// 選択
+			cf->color(appColor)->fillPie(
+				mergin, mergin, width() - mergin, height() - mergin,
+				r + cos(iconsAngle* selId - M_PI_2 + iconsAngle / 2)*r, r + sin(iconsAngle* selId - M_PI_2 + iconsAngle / 2)*r,
+				r + cos(iconsAngle* selId - M_PI_2 - iconsAngle / 2)*r, r + sin(iconsAngle* selId - M_PI_2 - iconsAngle / 2)*r
+				);
+		} else {
+			cf->color(selBackColor)->fillCircle(mergin, mergin, width() - mergin, height() - mergin);
+			cf->color(appColor);
+		}
+
+		// チップ
+		cf->addpos(hwidth, hheight);
+		for (auto it = tooltips.begin(); it != tooltips.end(); it++) {
+			a = fmod(iconsAngle*count + M_PI + M_PI_2, M_PI * 2);
+			imgs.drawCenter(
+				it->iconName,
+				cf->bx() + hwidth + cos(a) * rIcons,
+				cf->by() + hheight + sin(a) * rIcons
+			);
+
+			count++;
+		}
+	}
+
 	// 針
+	cf->addpos(hwidth, hheight);
 	for (float angle=12, rad=0; angle; --angle)
 	{
 		rad = degrad(angle * angleHour);
-		cf->pos(hwidth + cos(rad)*(r-mergin), hheight + sin(rad)*(r-mergin))->spix();
+//		cf->pos(hwidth + cos(rad)*(r-mergin), hheight + sin(rad)*(r-mergin))->spix();
+		cf->circle(
+			cos(rad)*(r - mergin-1), sin(rad)*(r - mergin-1),
+			cos(rad)*(r - mergin+1), sin(rad)*(r - mergin+1)
+			);
 	}
 
-	cf->addpos(hwidth, hheight);
 	cf->line(0, 0, cos(secAngle)*r, sin(secAngle)*r);
 	p.use("minute");
 	cf->line(0, 0, cos(minAngle)*rMinute, sin(minAngle)*rMinute);
 	p.use("hour");
 	cf->line(0, 0, cos(hourAngle)*rHour, sin(hourAngle)*rHour);
 	p.old();
-
-	cf->line(0, 0, cos(mouseAngle)*r, sin(mouseAngle)*r);
 
 
 	// 中央揃え用
@@ -212,24 +279,8 @@ int app::draw()
 	cf->mesfunc(centeringFunc, "%s", c.toName(c.dotw()));
 	cf->mesfunc(centeringFunc, "%d:%02d %2d", c.hour(), c.minute(), c.second());
 
-	// ツールチップの表示
-	if (opening || opened) {
-		float angleIcons = M_PI * 2 / tooltips.size();
-		int count = 0;
-		for (auto it = tooltips.begin(); it != tooltips.end(); it++) {
-			imgs.drawCenter(it->iconName,
-				cf->bx() + hwidth + cos(angleIcons*count - M_PI_2) * rIcons,
-				cf->by() + hheight + sin(angleIcons*count - M_PI_2) * rIcons);
-			count++;
-		}
-	}
-
 	// 裏画面反映
-	if (opening) {
-		cf->redraw();
-	} else {
-		cf->redraw(cf->bx(), cf->by(), width(), height());
-	}
+	cf->redraw();
 
 	return false;
 }
