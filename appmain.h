@@ -35,10 +35,10 @@ public:
 	virtual void init(form* window, canvas<form>* cf, HINSTANCE hInst, UINT nCmd);
 	virtual bool main();
 	virtual int draw();
+	virtual void windowSize(int width, int height);
 
 	int width() { return size.cx; }
 	int height() { return size.cy; }
-	void windowSize(int width, int height) { size.cx = width; size.cy = height; }
 	int initwidth() { return initsize.cx; }
 	int initheight() { return initsize.cy; }
 
