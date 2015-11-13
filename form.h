@@ -7,14 +7,15 @@
  */
 class form
 {
-	WNDCLASSEX	wce;		// クラス作成用
-	MSG		msg;			// メッセージ処理用
-	HWND	hWnd;			// ウィンドウハンドル
-	HDC		hDC, hMDC;		// デバイスコンテキスト/メモリ
-	HFONT	hFont;			// フォント
-	HPEN	hPen;			// ペン
-	HBRUSH	hBrush;			// ブラシ
-	HBITMAP	hMBitmap;		// メモリ用ビットマップ
+	WNDCLASSEX	wce;			// クラス作成用
+	MSG			msg;			// メッセージ処理用
+	HINSTANCE	hInst;			// 
+	HWND		hWnd;			// ウィンドウハンドル
+	HDC			hDC, hMDC;		// デバイスコンテキスト/メモリ
+	HFONT		hFont;			// フォント
+	HPEN		hPen;			// ペン
+	HBRUSH		hBrush;			// ブラシ
+	HBITMAP		hMBitmap;		// メモリ用ビットマップ
 
 	bool redrawFlag = false;
 
@@ -43,12 +44,13 @@ public:
 	}
 
 	// overload
-	operator HDC()		{ return hMDC; }
-	operator HWND()		{ return hWnd; }
-	operator HFONT()	{ return hFont; }
-	operator HPEN()		{ return hPen; }
-	operator HBRUSH()	{ return hBrush; }
-	operator HBITMAP()	{ return hMBitmap; }
+	operator HINSTANCE()	{ return hInst; }
+	operator HWND()			{ return hWnd; }
+	operator HDC()			{ return hMDC; }
+	operator HFONT()		{ return hFont; }
+	operator HPEN()			{ return hPen; }
+	operator HBRUSH()		{ return hBrush; }
+	operator HBITMAP()		{ return hMBitmap; }
 
 
 	// メンバアクセサ
@@ -84,15 +86,16 @@ public:
 		if (!RegisterClassEx(&wce)) {
 			throw("not created class.");
 		}
+		this->hInst = hInstance;
 	}
 
 	// ウィンドウの作成
-	void makeWindow(HINSTANCE hInstance, int nCmd, char* className, char* windowName = "", int width = 640, int height = 480, DWORD style = WS_OVERLAPPEDWINDOW, DWORD exStyle = 0, int xPos = CW_USEDEFAULT, int yPos = CW_USEDEFAULT)
+	void makeWindow(int nCmd, char* className, char* windowName = "", int width = 640, int height = 480, DWORD style = WS_OVERLAPPEDWINDOW, DWORD exStyle = 0, int xPos = CW_USEDEFAULT, int yPos = CW_USEDEFAULT)
 	{
 		hWnd = CreateWindowEx(
 			exStyle, className, windowName, style,
 			xPos, yPos, width, height,
-			NULL, NULL, hInstance, NULL
+			NULL, NULL, this->hInst, NULL
 			);
 
 		if (!hWnd) {
@@ -101,6 +104,16 @@ public:
 
 		ShowWindow(hWnd, nCmd);
 		makeObject();
+	}
+
+	// ボタンの作成
+	void makeButton(char* text, int x, int y, int width = 640, int height = 480, DWORD style = WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON)
+	{
+		CreateWindow(
+			"BUTTON", text, style,
+			x, y, width, height,
+			this->hWnd, NULL, this->hInst, NULL
+		);
 	}
 
 	// ウィンドウオブジェクトの作成
@@ -145,6 +158,7 @@ public:
 		font.cy = height;
 		hFont = CreateFont(font.cy, font.cx, 0, 0, FW_NORMAL, false, false, false, SHIFTJIS_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, FIXED_PITCH, faceName);
 		SelectObject(hMDC, hFont);
+		SelectObject(hDC, hFont);
 	}
 
 	// メッセージループ (falseを返すと終了)
@@ -176,6 +190,7 @@ public:
 	{
 		return GetForegroundWindow() == hWnd;
 	}
+
 
 	// タイトル変更
 	void title(char* text)

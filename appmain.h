@@ -33,6 +33,7 @@ public:
 	}
 
 	virtual void init(form* window, canvas<form>* cf, HINSTANCE hInst, UINT nCmd);
+	virtual ~app();
 	virtual bool main();
 	virtual int draw();
 	virtual void windowSize(int width, int height);
@@ -74,4 +75,5 @@ public:
 		return str.data();
 	}
 };
+
 
