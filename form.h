@@ -69,19 +69,23 @@ public:
 
 
 	// クラスの作成
-	void makeClass(HINSTANCE hInstance = NULL, char* AppName = "static", WNDPROC WindowProc = DefWindowProc, UINT style = CS_HREDRAW | CS_VREDRAW)
+	void makeClass(HINSTANCE hInstance = NULL, char* AppName = "static", WNDPROC WindowProc = DefWindowProc, UINT style = CS_HREDRAW | CS_VREDRAW, HICON hIcon = nullptr)
 	{
+		if (nullptr == hIcon) {
+			hIcon = LoadIcon(NULL, IDI_APPLICATION);
+		}
+
 		wce.cbSize = sizeof(wce);								// 構造体のsize
 		wce.style = style;										// スタイル
 		wce.lpfnWndProc = WindowProc;							// プロージャ関数
 		wce.cbClsExtra = wce.cbWndExtra = 0;
 		wce.hInstance = hInstance;								// プログラムのハンドル
-		wce.hIcon = LoadIcon(NULL, IDI_APPLICATION);			// アイコン
+		wce.hIcon = hIcon;			// アイコン
 		wce.hCursor = LoadCursor(NULL, IDC_ARROW);				// マウスカーソル
 		wce.hbrBackground = (HBRUSH)GetStockObject(WHITE_BRUSH);// ブラシ
 		wce.lpszMenuName = NULL;								// メニュー
 		wce.lpszClassName = AppName;							// クラス名
-		wce.hIconSm = LoadIcon(NULL, IDI_APPLICATION);			// 小さいアイコン
+		wce.hIconSm = hIcon;			// 小さいアイコン
 
 		if (!RegisterClassEx(&wce)) {
 			throw("not created class.");
@@ -104,16 +108,6 @@ public:
 
 		ShowWindow(hWnd, nCmd);
 		makeObject();
-	}
-
-	// ボタンの作成
-	void makeButton(char* text, int x, int y, int width = 640, int height = 480, DWORD style = WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON)
-	{
-		CreateWindow(
-			"BUTTON", text, style,
-			x, y, width, height,
-			this->hWnd, NULL, this->hInst, NULL
-		);
 	}
 
 	// ウィンドウオブジェクトの作成

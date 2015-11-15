@@ -442,6 +442,17 @@ public:
 		}
 	}
 
+	// ファイルアイコン取得
+	void loadIcon(char* fileName, nameType name)
+	{
+		this->name[name] = bitmaps.size();
+
+		WORD iIcon = 0;
+		HICON hIcon = ExtractAssociatedIcon(nullptr, fileName, &iIcon);
+
+		bitmaps.push_back(new Gdiplus::Bitmap(hIcon));
+	}
+
 	int width()
 	{
 		return bitmaps.back()->GetWidth();

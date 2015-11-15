@@ -14,7 +14,7 @@ int __stdcall WinMain(HINSTANCE hInst, HINSTANCE hPrev, char* lpCmd, int nCmd)
 	// 終了から遅延させる
 	short endCount = 0;
 	bool endFlag = false;
-	const byte endWaitTime = 100, fps = 160;
+	const byte endWaitTime = 100, fps = 0;
 
 	// アプリケーションメイン
 	const auto appMain = [&](MSG msg) {
@@ -30,7 +30,7 @@ int __stdcall WinMain(HINSTANCE hInst, HINSTANCE hPrev, char* lpCmd, int nCmd)
 			}
 		}
 
-		Sleep(1);
+//		Sleep(1);
 		return true;
 	};
 
