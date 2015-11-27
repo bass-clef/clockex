@@ -355,31 +355,59 @@ template<typename parent, typename nameType> class image
 	Gdiplus::Graphics* gdi;
 
 	std::vector<Gdiplus::Bitmap*> bitmaps;
-	std::unordered_map<nameType, size_t> name;
+	std::unordered_map<nameType, std::pair<size_t, std::pair<unsigned long, unsigned long>>> info;	// エイリアス,サイズ,hashLow,hashHigh
 
 
 private:
+	// ファイルの重複確認
+	bool isRegistered(HANDLE hFile, std::pair<unsigned long, unsigned long>* hashs)
+	{
+		// 重複してない場合hash値を代入
+		BY_HANDLE_FILE_INFORMATION bhfi;
+		GetFileInformationByHandle(hFile, &bhfi);
+		for (auto it = info.begin(); it != info.end(); it++) {
+			std::pair<nameType, std::pair<size_t, std::pair<unsigned long, unsigned long>>> infos = *it;
+			std::pair<size_t, std::pair<unsigned long, unsigned long>> element = infos.second;
+			std::pair<unsigned long, unsigned long> fileHash = element.second;
+			if (bhfi.nFileIndexLow == fileHash.first && bhfi.nFileIndexHigh == fileHash.second) {
+				CloseHandle(hFile);
+				hFile = nullptr;
+			}
+		}
+		if (nullptr == hFile) {
+			return true;
+		}
+		hashs->first = bhfi.nFileIndexLow;
+		hashs->second = bhfi.nFileIndexHigh;
+		return false;
+	}
+
 	// 画像を読み込んだメモリブロックのIStreamを作成
-	IStream* getFileIStream(char* lpszPath) {
-
-		HANDLE hFile;
-		HGLOBAL hBuf;
-		LPVOID lpBuf;
-
-		IStream* isFile;
-
-		DWORD dwFileSize, dwLoadSize;
-
+	IStream* getFileIStream(char* lpszPath, std::pair<unsigned long, unsigned long>* hashs)
+	{
 		// 画像ファイルオープン
+		HANDLE hFile;
 		hFile = CreateFile(lpszPath, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+		if (INVALID_HANDLE_VALUE == hFile) {
+			return nullptr;
+		}
+
+		// 画像ファイル重複確認
+		if (isRegistered(hFile, hashs)) {
+			CloseHandle(hFile);
+			return nullptr;
+		}
 
 		// ファイルサイズ取得
+		DWORD dwFileSize, dwLoadSize;
 		dwFileSize = GetFileSize(hFile, NULL);
 
 		// 画像ファイルデータ格納用メモリブロック確保
+		HGLOBAL hBuf;
 		hBuf = GlobalAlloc(GMEM_MOVEABLE, dwFileSize);
 
 		// メモリブロックをロックしアドレスを取得
+		LPVOID lpBuf;
 		lpBuf = GlobalLock(hBuf);
 
 		// 画像ファイルのデータをメモリブロックに読み込む
@@ -391,10 +419,10 @@ private:
 		GlobalUnlock(hBuf);
 
 		// メモリブロックからIStreamを作成
+		IStream* isFile;
 		CreateStreamOnHGlobal(hBuf, TRUE, &isFile);
 
 		return isFile;
-
 	}
 
 public:
@@ -425,32 +453,66 @@ public:
 	// 画像読み込み
 	void load(char* fileName, nameType name)
 	{
-		this->name[name] = bitmaps.size();
+		std::pair<unsigned long, unsigned long> hashs;
+		IStream* is = getFileIStream(fileName, &hashs);
+		if (nullptr == is) {
+			return;
+		}
 
-		IStream* is = getFileIStream(fileName);
+		this->info[name] = std::make_pair(bitmaps.size(), hashs);
 
 		bitmaps.push_back(new Gdiplus::Bitmap(is));
 
 		is->Release();
 	}
 
-	// 複数読み込み,ディレクトリの場合再帰的に探索
-	void loads(char* files, nameType name)
+	// 画像を読み込んで自動的にエイリアス割り付け
+	char* load(char* fileName)
 	{
-		if (FILE_ATTRIBUTE_DIRECTORY == GetFileAttributes(files)) {
-
+		std::pair<unsigned long, unsigned long> hashs;
+		IStream* is = getFileIStream(fileName, &hashs);
+		if (nullptr == is) {
+			return nullptr;
 		}
+
+		char name[MAX_PATH];
+		GetFileTitle(fileName, name, MAX_PATH);
+
+		this->info[name] = std::make_pair(bitmaps.size(), hashs);
+		bitmaps.push_back(new Gdiplus::Bitmap(is));
+
+		is->Release();
+
+		return name;
 	}
 
 	// ファイルアイコン取得
 	void loadIcon(char* fileName, nameType name)
 	{
-		this->name[name] = bitmaps.size();
+		HANDLE hFile;
+		hFile = CreateFile(fileName, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+		if (nullptr == hFile) {
+			return;
+		}
+		std::pair<unsigned long, unsigned long> hashs;
+		if (isRegistered(hFile, &hashs)) {
+			CloseHandle(hFile);
+			return;
+		}
+		CloseHandle(hFile);
+
+		this->info[name] = std::make_pair(bitmaps.size(), hashs);
 
 		WORD iIcon = 0;
 		HICON hIcon = ExtractAssociatedIcon(nullptr, fileName, &iIcon);
 
 		bitmaps.push_back(new Gdiplus::Bitmap(hIcon));
+	}
+
+	size_t getIndex(nameType name)
+	{
+		std::pair<size_t, std::pair<unsigned long, unsigned long>> element = this->info[name];
+		return element.first;
 	}
 
 	int width()
@@ -463,25 +525,24 @@ public:
 	}
 	int width(nameType name)
 	{
-		return bitmaps[this->name[name]]->GetWidth();
+		return bitmaps[getIndex(name)]->GetWidth();
 	}
 	int height(nameType name)
 	{
-		return bitmaps[this->name[name]]->GetHeight();
+		return bitmaps[getIndex(name)]->GetHeight();
 	}
 
 	// 描画
 	void draw(nameType name, int x = 0, int y = 0)
 	{
-		gdi->DrawImage(bitmaps[this->name[name]], x, y);
+		gdi->DrawImage(bitmaps[getIndex(name)], x, y);
 	}
 	void draw(nameType name, int x, int y, int width, int height, int srcx = 0, int srcy = 0)
 	{
-		gdi->DrawImage(bitmaps[this->name[name]], x, y, srcx, srcy, width, height);
+		gdi->DrawImage(bitmaps[getIndex(name)], x, y, srcx, srcy, width, height);
 	}
 	void drawCenter(nameType name, int x = 0, int y = 0)
 	{
-		gdi->DrawImage(bitmaps[this->name[name]], x-width(name)/2, y-height(name)/2);
+		gdi->DrawImage(bitmaps[getIndex(name)], x-width(name)/2, y-height(name)/2);
 	}
 };
-

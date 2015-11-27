@@ -1,134 +1,31 @@
 
+/*
+
+bug:
+//ファイルが開けない  DlgProcはbool値を返す,DefWindowProcによって代わりに違う処理がされていた?
+
+issue:
+//・canvas::image::loads関数の実装	そんなに必要そうでないため保留
+・iniファイルの作成/保存
+・各ツールの呼び出しキューの作成
+
+*/
+
+
 #include <Windows.h>
 #include <array>
 #include <fstream>
 #include <thread>
+#include <vector>
 
 #include "appmain.h"
+#include "module.h"
 #include "resource.h"
 
-#pragma comment(lib, "WindowsCodecs.lib")
 #pragma comment(lib, "Rpcrt4.lib")
+#pragma comment(lib, "WindowsCodecs.lib")
 #pragma warning(disable:4244)
 
-
-enum RUN_TIMING {
-	RT_SELECT,	// 選択時
-	RT_INIT,	// 初期化時(clockex自体の初期化処理の後)	初期変数の改変など
-	RT_CALC,	// 計算時(clockex自体の計算処理の後)		変数の改変
-	RT_DRAW,	// 描画時(clockex自体の描画処理の前)		描画の中断,フック
-	RT_EXIT,	// 終了時(clockex自体の終了処理の前)
-};
-
-// ツールの種類を表す
-enum TOOL {
-	T_NOTSELECTED = -1,		// ツールの動作が不明
-	T_EXIT,		// 終了する
-	T_ADD,		// 追加する
-	T_EXE,		// EXEを呼び出す
-	T_FUNC,		// 関数を呼び出す
-};
-
-struct appinfo
-{
-	app* self;
-	form* window;
-	canvas<form>* client;
-
-	appinfo() {}
-	appinfo(app* self, form* window, canvas<form>*client) {
-		this->self = self;
-		this->window = window;
-		this->client = client;
-	}
-};
-
-class module
-{
-	HMODULE hModule;	// モジールハンドル
-	char* address;		// 実行ファイル名 / 関数名
-
-public:
-	void command(char* command)
-	{
-		this->address = command;
-	}
-	void library(char* moduleName, char* funcName)
-	{
-		hModule = LoadLibrary(moduleName);
-		address = funcName;
-	}
-
-	// 実行ファイルをオプション付きで実行
-	int exec(appinfo* ai)
-	{
-		return system(this->address);
-	}
-	// module関数にappinfoを渡して呼び出し
-	int func(appinfo* ai)
-	{
-		typedef bool (*proc_type)(appinfo*);
-		proc_type proc = (proc_type)GetProcAddress(hModule, address);
-		return proc(ai);
-	}
-};
-
-class tooltip : public module {
-	std::string iconName;
-	TOOL type;
-	std::vector<RUN_TIMING> timing;
-
-public:
-	operator int()
-	{
-		return this->type;
-	}
-
-	tooltip() {}
-	tooltip(char* iconName, TOOL type, RUN_TIMING timing)
-	{
-		this->iconName = iconName;
-		this->type = type;
-		this->timing.push_back(timing);
-	}
-	tooltip(char* iconName, TOOL type, std::vector<RUN_TIMING>* timing)
-	{
-		this->iconName = iconName;
-		this->type = type;
-		this->timing = *timing;
-	}
-
-	void init(char* command)
-	{
-		type = T_EXE;
-		this->init(command);
-	}
-
-	// 実行
-	bool execute(appinfo* ap)
-	{
-		switch (type){
-		case T_EXIT:
-			return true;
-
-		case T_ADD:
-			break;
-
-		case T_EXE:
-			exec(ap);
-			break;
-
-		case T_FUNC:
-			return (bool)func(ap);
-		}
-		return false;
-	}
-
-	const char* name()
-	{
-		return this->iconName.data();
-	}
-};
 
 // ファイル単位変数
 namespace {
@@ -139,12 +36,13 @@ namespace {
 		mergin = 15;
 	const byte rowHeight = 2;
 	const std::vector<std::string>
-		comboText = { "終了する", "追加する", "実行ファイル", "モジュール関数" },
+		comboText = { "ClockExの終了", "ツールの追加", "ファイル", "モジュール関数" },
 		listText = { "選択時", "初期化時", "計算時", "描画時", "終了時" };
 
 	// 変数
-	chrono c;					// 時計
-	pen<form, std::string> p;	// ペン管理
+	appinfo ai;
+	chrono c;						// 時計
+	pen<form, std::string> p;		// ペン管理
 	image<form, std::string> imgs;	// 画像管理
 	std::vector<tooltip> tooltips;	// ツールチップ管理
 
@@ -159,7 +57,6 @@ namespace {
 		r, rHour, rMinute, rIcons = 75,					// 針の長さ
 		hwidth, hheight;								// ウィンドウ半分のサイズ
 	int selId;											// 選択されたツールチップID
-	appinfo ai;
 
 	/*
 	:ファイルに保存するもの:
@@ -180,6 +77,8 @@ namespace {
 	}
 	*/
 }
+
+
 
 
 // サブウィンドウのWinMsgコールバック
@@ -204,8 +103,38 @@ LRESULT __stdcall DlgProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp)
 	case WM_COMMAND:
 		// 子コントロールから
 		switch (LOWORD(wp)) {
-		case IDC_BUTTON1:	// ...
+		case IDC_BUTTON1: {// ...
+			char fileName[MAX_PATH] = "";
+
+			OPENFILENAME ofn;
+			ZeroMemory(&ofn, sizeof(ofn));
+			ofn.lStructSize = sizeof(OPENFILENAME);
+			ofn.hwndOwner = hWnd;
+			ofn.lpstrFilter = "すべてのファイル(*.*)\0*.*\0\0";
+			ofn.lpstrFile = fileName;
+			ofn.nMaxFile = MAX_PATH;
+			ofn.Flags = OFN_FILEMUSTEXIST;
+			GetOpenFileName(&ofn);
+
+			SetWindowText(GetDlgItem(hWnd, IDC_EDIT1), (LPCSTR)fileName);
 			break;
+		}
+		case IDC_BUTTON3: {// ...
+			char fileName[MAX_PATH] = "";
+
+			OPENFILENAME ofn;
+			ZeroMemory(&ofn, sizeof(ofn));
+			ofn.lStructSize = sizeof(OPENFILENAME);
+			ofn.hwndOwner = hWnd;
+			ofn.lpstrFilter = "すべてのファイル(*.*)\0*.*\0\0";
+			ofn.lpstrFile = fileName;
+			ofn.nMaxFile = MAX_PATH;
+			ofn.Flags = OFN_FILEMUSTEXIST;
+			GetOpenFileName(&ofn);
+
+			SetWindowText(GetDlgItem(hWnd, IDC_EDIT3), (LPCSTR)fileName);
+			break;
+		}
 
 		case IDC_BUTTON2: {	// 作成
 			int newId = tooltips.size();
@@ -225,37 +154,61 @@ LRESULT __stdcall DlgProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp)
 			tooltips.resize(newId + 1);
 
 			// ファイル名とオプション/関数名
-			HWND hFileEdit = GetDlgItem(hWnd, IDC_EDIT1), hOptionEdit = GetDlgItem(hWnd, IDC_EDIT2);
-			std::string fileName, options;
-			fileName.resize(GetWindowTextLength(hFileEdit)+1);
-			options.resize(GetWindowTextLength(hOptionEdit)+1);
+			HWND hFileEdit = GetDlgItem(hWnd, IDC_EDIT1),
+				hOptionEdit = GetDlgItem(hWnd, IDC_EDIT2),
+				hIconFileEdit = GetDlgItem(hWnd, IDC_EDIT3);
+
+			std::string fileName, options, iconFileName;
+			fileName.resize(GetWindowTextLength(hFileEdit) + 1);
+			options.resize(GetWindowTextLength(hOptionEdit) + 1);
+			iconFileName.resize(GetWindowTextLength(hIconFileEdit) + 1);
 			GetWindowText(hFileEdit, (LPSTR)fileName.c_str(), fileName.size());
 			GetWindowText(hOptionEdit, (LPSTR)options.c_str(), options.size());
+			GetWindowText(hIconFileEdit, (LPSTR)iconFileName.c_str(), iconFileName.size());
 
+			char* iconName = nullptr;
+			if (1 < iconFileName.size()) {
+				// アイコンファイル読み込み
+				iconName = imgs.load((char*)iconFileName.data());
+				OutputDebugString(ai.appClass->strf("%s\n", iconName));
+			}
+			if (nullptr == iconName) {
+				// ファイルアイコン用のUUIDの文字列版を作成,EXEからアイコン取得
+				UUID uuid;
+				UuidCreate(&uuid);
+				UuidToString(&uuid, (unsigned char**)&iconName);
+				imgs.loadIcon((char*)fileName.data(), iconName);
+			}
+
+			// 種類別にtooltips作成
 			switch (type) {
 			case T_FUNC:
-				tooltips[newId] = { "close", type, &timing };
+				tooltips[newId] = { iconName, type, &timing };
 				tooltips[newId].library((char*)fileName.data(), (char*)options.data());
 				break;
 
-			case T_EXE:
-				fileName.append(" ");
-				fileName.append(options.data());
+			case T_EXE: {
+				if (options.size()) {
+					fileName.append(" ");
+					fileName.append(options.data());
+				}
 
-				unsigned char* uuidstr;
-				UUID uuid;
-				UuidCreate(&uuid);
-				UuidToString(&uuid, &uuidstr);
-
-				imgs.loadIcon((char*)fileName.data(), (char*)uuidstr);
-				tooltips[newId] = { (char*)uuidstr, type, &timing };
-				tooltips[newId].command((char*)fileName.data());
+				tooltips[newId] = { iconName, type, &timing };
+				tooltips[newId].command((char*)fileName.c_str());
 				break;
-
-			default:
-				tooltips[newId] = { "close", type, &timing };
 			}
 
+			case T_ADD:
+				tooltips[newId] = { "add", type, &timing };
+				break;
+
+			case T_EXIT:
+				tooltips[newId] = { "close", type, &timing };
+				break;
+			}
+
+			EndDialog(hWnd, IDOK);
+			break;
 		}
 
 		case IDCANCEL:	// キャンセル
@@ -268,8 +221,7 @@ LRESULT __stdcall DlgProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp)
 		EndDialog(hWnd, IDOK);
 		return true;
 	}
-
-	return DefWindowProc(hWnd, uMsg, wp, lp);
+	return false;
 }
 
 
@@ -310,7 +262,7 @@ void app::init(form* window, canvas<form>* cf, HINSTANCE hInst, UINT nCmd)
 	case 0: appColor = 0x8888FF; break;
 	case 1: appColor = 0xFFAA00; break;
 	case 2: appColor = 0xFF88AA; break;
-	case 3: appColor = 0xFF0000; break;
+	case 3: appColor = 0xFF8888; break;
 	case 4: appColor = 0xAAFF00; break;
 	case 5: appColor = 0xFFAA00; break;
 	case 6: appColor = 0xAA00; break;
@@ -338,14 +290,12 @@ void app::init(form* window, canvas<form>* cf, HINSTANCE hInst, UINT nCmd)
 	imgs.load("icons/glyphicons-433-plus.png", "add");
 
 	// ツールチップ初期化
-//	iniFile.open("", std::ios::binary | std::ios::out | std::ios::app);
-	
 	tooltips.push_back({ "close", TOOL::T_EXIT, RT_SELECT });
 	tooltips.push_back({ "add", TOOL::T_ADD, RT_SELECT });
 }
 
 
-// 終了
+// 終了処理
 app::~app()
 {
 
@@ -422,13 +372,7 @@ bool app::main()
 	if (opened && !GetAsyncKeyState(VK_RBUTTON)) {
 		opening = true;
 
-		if (TOOL::T_ADD == selId) {
-			// ツールの追加 x16までいける
-			std::thread makeTool([&]() {
-				DialogBox((HINSTANCE)*window, (LPCSTR)IDD_DIALOG1, (HWND)*window, DlgProc);
-			});
-			makeTool.detach();
-		} else if (TOOL::T_NOTSELECTED != selId) {
+		if (TOOL::T_NOTSELECTED != selId) {
 			// ツールの呼び出し
 			if (tooltips[selId].execute(&ai)) return true;
 		}
@@ -572,5 +516,3 @@ void app::windowSize(int width, int height)
 	hwidth = width / 2;
 	hheight = height / 2;
 }
-
-

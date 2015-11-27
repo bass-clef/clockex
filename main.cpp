@@ -1,4 +1,5 @@
 #include <Windows.h>
+#include <thread>
 
 #include "appmain.h"
 
@@ -30,12 +31,12 @@ int __stdcall WinMain(HINSTANCE hInst, HINSTANCE hPrev, char* lpCmd, int nCmd)
 			}
 		}
 
-//		Sleep(1);
+		Sleep(1);
 		return true;
 	};
 
 	// 終了コード来るまで待機
-	while (window.messageLoop(appMain, fps)) Sleep(1);
+	while (window.messageLoop(appMain, fps));
 
 	return 0;
 }

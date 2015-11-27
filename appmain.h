@@ -4,10 +4,10 @@
 
 #include <math.h>
 #include <string>
+#include <vector>
 
 #include "canvas.h"
 #include "form.h"
-
 
 // アプリケーションメインクラス
 class app
@@ -77,3 +77,23 @@ public:
 };
 
 
+// appmainで使うクラスまとめ
+class tooltip;
+struct appinfo
+{
+	app* appClass;
+	form* window;
+	canvas<form>* client;
+
+	chrono* c;						// 時計
+	pen<form, std::string>* p;		// ペン管理
+	image<form, std::string>* imgs;	// 画像管理
+	std::vector<tooltip>* tooltips;	// ツールチップ管理
+
+	appinfo() {}
+	appinfo(app* own, form* window, canvas<form>*client) {
+		this->appClass = own;
+		this->window = window;
+		this->client = client;
+	}
+};
