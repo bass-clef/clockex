@@ -40,5 +40,4 @@ int __stdcall WinMain(HINSTANCE hInst, HINSTANCE hPrev, char* lpCmd, int nCmd)
 
 	return 0;
 }
-
 /*EOL*/

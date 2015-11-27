@@ -467,23 +467,20 @@ public:
 	}
 
 	// 画像を読み込んで自動的にエイリアス割り付け
-	char* load(char* fileName)
+	void load(char* fileName, char* name)
 	{
 		std::pair<unsigned long, unsigned long> hashs;
 		IStream* is = getFileIStream(fileName, &hashs);
 		if (nullptr == is) {
-			return nullptr;
+			return;
 		}
 
-		char name[MAX_PATH];
 		GetFileTitle(fileName, name, MAX_PATH);
 
 		this->info[name] = std::make_pair(bitmaps.size(), hashs);
 		bitmaps.push_back(new Gdiplus::Bitmap(is));
 
 		is->Release();
-
-		return name;
 	}
 
 	// ファイルアイコン取得
@@ -500,6 +497,29 @@ public:
 			return;
 		}
 		CloseHandle(hFile);
+
+		this->info[name] = std::make_pair(bitmaps.size(), hashs);
+
+		WORD iIcon = 0;
+		HICON hIcon = ExtractAssociatedIcon(nullptr, fileName, &iIcon);
+
+		bitmaps.push_back(new Gdiplus::Bitmap(hIcon));
+	}
+	void loadIcon(char* fileName, char* name)
+	{
+		HANDLE hFile;
+		hFile = CreateFile(fileName, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+		if (nullptr == hFile) {
+			return;
+		}
+		std::pair<unsigned long, unsigned long> hashs;
+		if (isRegistered(hFile, &hashs)) {
+			CloseHandle(hFile);
+			return;
+		}
+		CloseHandle(hFile);
+
+		GetFileTitle(fileName, name, MAX_PATH);
 
 		this->info[name] = std::make_pair(bitmaps.size(), hashs);
 

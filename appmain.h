@@ -78,17 +78,19 @@ public:
 
 
 // appmainで使うクラスまとめ
-class tooltip;
+class modules;
 struct appinfo
 {
-	app* appClass;
-	form* window;
-	canvas<form>* client;
+	enum RUN_TIMING timing;	// 前回のタイミング
+
+	app* appClass;					// appmain全部
+	form* window;					// ウィンドウ情報
+	canvas<form>* client;			// クライアント情報
 
 	chrono* c;						// 時計
 	pen<form, std::string>* p;		// ペン管理
 	image<form, std::string>* imgs;	// 画像管理
-	std::vector<tooltip>* tooltips;	// ツールチップ管理
+	modules* tooltips;				// ツールチップ管理
 
 	appinfo() {}
 	appinfo(app* own, form* window, canvas<form>*client) {

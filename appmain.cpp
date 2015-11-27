@@ -3,11 +3,16 @@
 
 bug:
 //ファイルが開けない  DlgProcはbool値を返す,DefWindowProcによって代わりに違う処理がされていた?
+//exeファイル,addressの中身が突如消失して実行できない	push_back と [] での作成に差がある,あそらく別スレッドで作成した時のみおこるであろう
 
 issue:
 //・canvas::image::loads関数の実装	そんなに必要そうでないため保留
-・iniファイルの作成/保存
+・jsonファイルの読込/保存
+	// 読み込み
+	json保存
+		比較してないものだけcreate
 ・各ツールの呼び出しキューの作成
+	RT_ADD時にキューの更新
 
 */
 
@@ -17,6 +22,7 @@ issue:
 #include <fstream>
 #include <thread>
 #include <vector>
+#include <picojson.h>
 
 #include "appmain.h"
 #include "module.h"
@@ -42,14 +48,13 @@ namespace {
 	// 変数
 	appinfo ai;
 	chrono c;						// 時計
+	modules tooltips;				// ツールチップ管理
 	pen<form, std::string> p;		// ペン管理
 	image<form, std::string> imgs;	// 画像管理
-	std::vector<tooltip> tooltips;	// ツールチップ管理
 
 	COLORREF transColor, backColor, appColor, selBackColor;
 	POINT mousePos, prevSecPos;
 	RECT windowPos;
-	std::ofstream iniFile;
 	bool opening = false, opened = false;
 	float basex = 50, basey = 50, openingCount = 0,		// 描画始点
 		secAngle, minAngle, hourAngle,					// 時,分,秒 針の角度
@@ -65,15 +70,24 @@ namespace {
 		icons数
 	}
 	tooltips {
-		タイプ(int)							T_EXIT / T_ADD / T_EXE / T_FUNC		T_EXIT,T_ADDは完全パス,オプション名なし/T_FUNCはcanvas,windowのポインタを渡す引数固定
-		ファイル完全パス(size_t,char*)		exe名,dll名
-		オプション/関数名(size_t,char*)		T_EXE:オプション T_FUNC:関数名
+		タイプ(int)							T_EXIT / T_ADD / T_FILE / T_FUNC		T_EXIT,T_ADDは完全パス,オプション名なし/T_FUNCはcanvas,windowのポインタを渡す引数固定
+		ファイル完全パス(size_t,char*)		ファイル名,dll名
+		オプション/関数名(size_t,char*)		T_FILE:オプション T_FUNC:関数名
 		アイコン名(size_t,char*)			iconsで読み込みしたエイリアス名(おそらく自動的に割り付け)
 		動作するタイミング(int)				init,calc,draw,exit それぞれ複数選択可
 	}
 	icons {
 		アイコンパス(size_t,char*)
 		エイリアス名(size_t,char*)
+	}
+
+	:json形式:
+	modsディレクトリ下の hoge.json をすべて読み込む
+	{
+		type:"0-3|exit|add|file|func",
+		path:"ファイル名",
+		option:"オプションまたは関数名",
+		timing:"0-4|init|calc|draw|exit|selected"
 	}
 	*/
 }
@@ -91,13 +105,13 @@ LRESULT __stdcall DlgProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp)
 		for (size_t count = 0; count < comboText.size(); count++) {
 			SendMessage(hCombo, CB_ADDSTRING, count, (LPARAM)comboText[count].data());
 		}
-		SendMessage(GetDlgItem(hWnd, IDC_COMBO1), CB_SETCURSEL, (WPARAM)0, 0);
+		SendMessage(GetDlgItem(hWnd, IDC_COMBO1), CB_SETCURSEL, (WPARAM)TOOL::T_FILE, 0);
 
 		for (size_t count = 0; count < listText.size(); count++) {
 			SendMessage(GetDlgItem(hWnd, IDC_LIST1), LB_INSERTSTRING, count, (LPARAM)listText[count].data());
 		}
 
-		break;
+		return true;
 	}
 
 	case WM_COMMAND:
@@ -137,8 +151,6 @@ LRESULT __stdcall DlgProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp)
 		}
 
 		case IDC_BUTTON2: {	// 作成
-			int newId = tooltips.size();
-
 			// ツールの種類
 			TOOL type = (TOOL)SendMessage(GetDlgItem(hWnd, IDC_COMBO1), CB_GETCURSEL, 0, 0);
 
@@ -150,8 +162,6 @@ LRESULT __stdcall DlgProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp)
 					timing.push_back((RUN_TIMING)count);
 				}
 			}
-
-			tooltips.resize(newId + 1);
 
 			// ファイル名とオプション/関数名
 			HWND hFileEdit = GetDlgItem(hWnd, IDC_EDIT1),
@@ -166,19 +176,22 @@ LRESULT __stdcall DlgProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp)
 			GetWindowText(hOptionEdit, (LPSTR)options.c_str(), options.size());
 			GetWindowText(hIconFileEdit, (LPSTR)iconFileName.c_str(), iconFileName.size());
 
-			char* iconName = nullptr;
+			char iconName[MAX_PATH] = "";
 			if (1 < iconFileName.size()) {
 				// アイコンファイル読み込み
-				iconName = imgs.load((char*)iconFileName.data());
+				imgs.load((char*)iconFileName.data(), iconName);
 				OutputDebugString(ai.appClass->strf("%s\n", iconName));
 			}
-			if (nullptr == iconName) {
-				// ファイルアイコン用のUUIDの文字列版を作成,EXEからアイコン取得
+			if (0 == strcmp(iconName, "")) {
+				// ファイルアイコン用のUUIDの文字列版を作成,ファイルからアイコン取得
 				UUID uuid;
 				UuidCreate(&uuid);
 				UuidToString(&uuid, (unsigned char**)&iconName);
 				imgs.loadIcon((char*)fileName.data(), iconName);
 			}
+
+			size_t newId = tooltips.size();
+			tooltips.resize(newId+1);
 
 			// 種類別にtooltips作成
 			switch (type) {
@@ -187,14 +200,14 @@ LRESULT __stdcall DlgProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp)
 				tooltips[newId].library((char*)fileName.data(), (char*)options.data());
 				break;
 
-			case T_EXE: {
+			case T_FILE: {
 				if (options.size()) {
 					fileName.append(" ");
 					fileName.append(options.data());
 				}
 
 				tooltips[newId] = { iconName, type, &timing };
-				tooltips[newId].command((char*)fileName.c_str());
+				tooltips[newId].command((char*)fileName.data());
 				break;
 			}
 
@@ -215,7 +228,7 @@ LRESULT __stdcall DlgProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp)
 			EndDialog(hWnd, IDOK);
 			break;
 		}
-		break;
+		return true;
 
 	case WM_CLOSE:
 		EndDialog(hWnd, IDOK);
@@ -246,7 +259,15 @@ void app::init(form* window, canvas<form>* cf, HINSTANCE hInst, UINT nCmd)
 {
 	this->window = window;
 	this->cf = cf;
-	ai = { this, window, cf };
+
+	ai.timing = RUN_TIMING::RT_INIT;
+	ai.appClass = this;
+	ai.window = window;
+	ai.client = cf;
+	ai.c = &c;
+	ai.p = &p;
+	ai.imgs = &imgs;
+	ai.tooltips = &tooltips;
 
 	HICON hIcon = LoadIcon(hInst, (LPCSTR)IDI_ICON1);
 	window->makeClass(hInst, "clockex", WndProc, 3U, hIcon);
@@ -274,7 +295,7 @@ void app::init(form* window, canvas<form>* cf, HINSTANCE hInst, UINT nCmd)
 	basex = initwidth()/4;
 	basey = initheight()/4;
 
-	// オブジェクトで使うものを定義, ウィンドウの透過
+	// オブジェクトの初期化/読み込み, ウィンドウの透過
 	window->makeFont("ＭＳ ゴシック", 14);
 	SetLayeredWindowAttributes((HWND)*window, transColor, 0xB0, LWA_ALPHA | LWA_COLORKEY);
 
@@ -283,21 +304,18 @@ void app::init(form* window, canvas<form>* cf, HINSTANCE hInst, UINT nCmd)
 	p.make(PS_SOLID, hourHand, appColor, "hour");
 	p.make(PS_SOLID, minuteHand, appColor, "minute");
 	p.old();
-
-	// 画像の読み込み
 	imgs.init(window);
-	imgs.load("icons/glyphicons-208-remove-2.png", "close");
-	imgs.load("icons/glyphicons-433-plus.png", "add");
 
 	// ツールチップ初期化
-	tooltips.push_back({ "close", TOOL::T_EXIT, RT_SELECT });
-	tooltips.push_back({ "add", TOOL::T_ADD, RT_SELECT });
+	tooltips.readExtension(&ai, "mods\\", "*.json");
+	
 }
 
 
 // 終了処理
 app::~app()
 {
+	ai.timing = RUN_TIMING::RT_EXIT;
 
 
 
@@ -308,6 +326,10 @@ app::~app()
 // メイン
 bool app::main()
 {
+	// ツールの実行
+	ai.timing = RUN_TIMING::RT_CALC;
+
+
 	// ツールの表示
 	if (!opened && false == opening && 0x8000 & GetAsyncKeyState(VK_RBUTTON)) {	// 右クリックで表示
 		GetCursorPos(&mousePos);
@@ -372,6 +394,7 @@ bool app::main()
 	if (opened && !GetAsyncKeyState(VK_RBUTTON)) {
 		opening = true;
 
+		ai.timing = RUN_TIMING::RT_SELECT;
 		if (TOOL::T_NOTSELECTED != selId) {
 			// ツールの呼び出し
 			if (tooltips[selId].execute(&ai)) return true;
@@ -406,6 +429,11 @@ bool app::main()
 // 描画
 int app::draw()
 {
+	// ツールの実行
+	ai.timing = RUN_TIMING::RT_DRAW;
+
+
+	// 背景
 	cf->basepos(0, 0);
 	cf->color(transColor);
 	cf->fillBox(0, 0, initwidth(), initheight());
