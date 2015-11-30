@@ -3,7 +3,6 @@
 
 #include "appmain.h"
 
-
 int __stdcall WinMain(HINSTANCE hInst, HINSTANCE hPrev, char* lpCmd, int nCmd)
 {
 	form window;
@@ -37,6 +36,8 @@ int __stdcall WinMain(HINSTANCE hInst, HINSTANCE hPrev, char* lpCmd, int nCmd)
 
 	// 終了コード来るまで待機
 	while (window.messageLoop(appMain, fps));
+
+	app.exit();
 
 	return 0;
 }

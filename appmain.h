@@ -33,7 +33,7 @@ public:
 	}
 
 	virtual void init(form* window, canvas<form>* cf, HINSTANCE hInst, UINT nCmd);
-	virtual ~app();
+	virtual void exit();
 	virtual bool main();
 	virtual int draw();
 	virtual void windowSize(int width, int height);
@@ -91,11 +91,4 @@ struct appinfo
 	pen<form, std::string>* p;		// ペン管理
 	image<form, std::string>* imgs;	// 画像管理
 	modules* tooltips;				// ツールチップ管理
-
-	appinfo() {}
-	appinfo(app* own, form* window, canvas<form>*client) {
-		this->appClass = own;
-		this->window = window;
-		this->client = client;
-	}
 };

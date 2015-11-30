@@ -36,11 +36,11 @@ issue:
 // ファイル単位変数
 namespace {
 	// 定数
-	const float openingCountMax = 45, resizeMax = 50,	// ツールの表示速度
+	constexpr float openingCountMax = 45, resizeMax = 50,	// ツールの表示速度
 		angleMinute = 360 / 60, angleHour = 360 / 12,	// 長針,短針の1角度
 		rInitIcons  = 15,								// アイコンの表示する距離
 		mergin = 15;
-	const byte rowHeight = 2;
+	constexpr byte rowHeight = 2;
 	const std::vector<std::string>
 		comboText = { "ClockExの終了", "ツールの追加", "ファイル", "モジュール関数" },
 		listText = { "選択時", "初期化時", "計算時", "描画時", "終了時" };
@@ -190,33 +190,13 @@ LRESULT __stdcall DlgProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp)
 				imgs.loadIcon((char*)fileName.data(), iconName);
 			}
 
-			size_t newId = tooltips.size();
-			tooltips.resize(newId+1);
-
 			// 種類別にtooltips作成
+			module& m = tooltips.add(iconName, type, &timing);
+
 			switch (type) {
 			case T_FUNC:
-				tooltips[newId] = { iconName, type, &timing };
-				tooltips[newId].library((char*)fileName.data(), (char*)options.data());
-				break;
-
-			case T_FILE: {
-				if (options.size()) {
-					fileName.append(" ");
-					fileName.append(options.data());
-				}
-
-				tooltips[newId] = { iconName, type, &timing };
-				tooltips[newId].command((char*)fileName.data());
-				break;
-			}
-
-			case T_ADD:
-				tooltips[newId] = { "add", type, &timing };
-				break;
-
-			case T_EXIT:
-				tooltips[newId] = { "close", type, &timing };
+			case T_FILE:
+				m.init((char*)fileName.data(), (char*)options.data());
 				break;
 			}
 
@@ -309,17 +289,18 @@ void app::init(form* window, canvas<form>* cf, HINSTANCE hInst, UINT nCmd)
 	// ツールチップ初期化
 	tooltips.readExtension(&ai, "mods\\", "*.json");
 	
+	// ツールの実行
+
 }
 
 
 // 終了処理
-app::~app()
+void app::exit()
 {
+	// ツールの実行
 	ai.timing = RUN_TIMING::RT_EXIT;
 
-
-
-
+	tooltips.saveExtension(&ai);
 }
 
 
@@ -397,7 +378,7 @@ bool app::main()
 		ai.timing = RUN_TIMING::RT_SELECT;
 		if (TOOL::T_NOTSELECTED != selId) {
 			// ツールの呼び出し
-			if (tooltips[selId].execute(&ai)) return true;
+			if (tooltips.execute(selId, &ai)) return true;
 		}
 		selId = TOOL::T_NOTSELECTED;
 	}
@@ -408,6 +389,10 @@ bool app::main()
 	secAngle = degrad(angleMinute * c.second() + angleMinute / 1000.0 * c.milli());
 	minAngle = degrad(angleMinute * c.minute());
 	hourAngle = degrad(angleHour * c.hhour() + angleMinute / 12.0 * c.minute());
+
+
+	// ツールの実行
+	ai.timing = RUN_TIMING::RT_DRAW;
 
 
 	// 描画の抑制
@@ -429,10 +414,6 @@ bool app::main()
 // 描画
 int app::draw()
 {
-	// ツールの実行
-	ai.timing = RUN_TIMING::RT_DRAW;
-
-
 	// 背景
 	cf->basepos(0, 0);
 	cf->color(transColor);

@@ -4,21 +4,23 @@
 #include <string>
 #include <vector>
 #include <thread>
+#include <fstream>
 
 #include "appmain.h"
 #include "resource.h"
 
 
+// プロトタイプ宣言
 LRESULT __stdcall DlgProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp);
 
 
+// 実行タイミングを表す
 enum RUN_TIMING {
 	RT_SELECT,	// 選択時
 	RT_INIT,	// 初期化時(clockex自体の初期化処理の後)	初期変数の改変など
 	RT_CALC,	// 計算時(clockex自体の計算処理の後)		変数の改変
 	RT_DRAW,	// 描画時(clockex自体の描画処理の前)		描画の中断,フック
 	RT_EXIT,	// 終了時(clockex自体の終了処理の前)
-
 };
 
 // ツールの種類を表す
@@ -33,11 +35,12 @@ enum TOOL {
 // モジュール管理クラス
 class module
 {
-	HMODULE hModule;		// モジールハンドル
-	std::string address, iconName;		// ファイル名 / 関数名, アイコン名
+	std::string option;		// typeによって関数名かオプション
+	std::string address, iconName;		// ファイル名, アイコン名
 	std::vector<RUN_TIMING> timing;		// 実行タイミング
-	long result = false;	// 結果
+	long result = 0;		// 結果
 	TOOL type;				// 種類
+	bool saved = false;		// 保存したか
 
 	// 実行タイミングの確認
 	bool bootMatch(RUN_TIMING nowTiming)
@@ -62,6 +65,13 @@ public:
 		this->type = type;
 		this->timing = *timing;
 	}
+	module(char* iconName, TOOL type, std::vector<RUN_TIMING>* timing, bool saved)
+	{
+		this->iconName = iconName;
+		this->type = type;
+		this->timing = *timing;
+		this->saved = saved;
+	}
 
 	operator int()
 	{
@@ -73,26 +83,34 @@ public:
 		return this->iconName.data();
 	}
 
-	void command(char* command)
+	bool isSaved()
 	{
-		address.assign(command);
+		return saved;
 	}
-	void library(char* moduleName, char* funcName)
+
+	void init(char* address, char* option)
 	{
-		hModule = LoadLibrary(moduleName);
-		address = funcName;
+		this->address = address;
+		this->option = option;
 	}
 
 	// ファイルをオプション付きで実行
 	void exec(appinfo* ai)
 	{
+		std::string file = address.data();
+
+		if (option.size()) {
+			file.append(" ");
+			file.append((char*)option.data());
+		}
+
 		std::thread execute([&]() {
 			SHELLEXECUTEINFO sei = { 0 };
 			sei.cbSize = sizeof(sei);
 			sei.hwnd = (HWND)*ai->window;
 			sei.nShow = SW_SHOWNORMAL;
 			sei.fMask = SEE_MASK_NOCLOSEPROCESS;
-			sei.lpFile = address.data();
+			sei.lpFile = file.data();
 			if (!ShellExecuteEx(&sei) || (const int)sei.hInstApp <= 32) {
 				result = (long)sei.hInstApp;
 				return;
@@ -107,11 +125,16 @@ public:
 	// module関数にappinfoを渡して呼び出し
 	void func(appinfo* ai)
 	{
-		typedef bool(*proc_type)(appinfo*);
-		proc_type proc = (proc_type)GetProcAddress(hModule, address.data());
-
 		std::thread execute([&]() {
+			typedef bool(*proc_type)(appinfo*);
+
+			HMODULE hModule = LoadLibrary(option.data());
+
+			proc_type proc = (proc_type)GetProcAddress(hModule, address.data());
+
 			result = proc(ai);
+
+			FreeLibrary(hModule);
 		});
 		execute.detach();
 	}
@@ -147,12 +170,39 @@ public:
 		}
 		return false;
 	}
+
+	// picojsonのオブジェクトに挿入
+	void insertObject(picojson::object* o)
+	{
+		o->insert(std::make_pair("type", picojson::value((double)type)));
+		o->insert(std::make_pair("icon", picojson::value((char*)iconName.data())));
+
+		if (1 < timing.size()) {
+			picojson::array a;
+
+			for (auto count = 0; count < timing.size(); ++count) {
+				a.push_back(picojson::value((double)(int)timing[count]));
+			}
+			o->insert(std::make_pair("timing", picojson::value(a)));
+		} else {
+			o->insert(std::make_pair("timing", picojson::value((double)(int)timing.back())));
+		}
+
+		switch (type) {
+		case T_FILE: case T_FUNC:
+			o->insert(std::make_pair("file", picojson::value((char*)address.data())));
+			o->insert(std::make_pair("option", picojson::value((char*)option.data())));
+		}
+
+		saved = true;
+	}
 };
 
 
 // 複数のモジュールの管理をするクラス
 class modules {
 	std::vector<module> tooltips;	// ツールチップ管理
+	bool locked = false;			// ロックされていて実行できない
 
 	// json読み込んでツールの定義
 	void readJson(appinfo* ap, char* fileName)
@@ -178,34 +228,26 @@ class modules {
 
 			if (element["type"].is<double>()) {
 				type = (TOOL)(int)element["type"].get<double>();
-				OutputDebugString(ap->appClass->strf("modname:[%s] type:%d\n", it->first.data(), type));
 			}
 			if (element["file"].is<std::string>()) {
 				filePath.assign(element["file"].get<std::string>().data());
-				OutputDebugString(ap->appClass->strf("file[%s]\n", filePath.data()));
 			}
 			if (element["icon"].is<std::string>()) {
 				iconPath.assign(element["icon"].get<std::string>().data());
-				OutputDebugString(ap->appClass->strf("icon[%s]\n", iconPath.data()));
 			}
 			if (element["option"].is<std::string>()) {
 				option.assign(element["option"].get<std::string>().data());
-				OutputDebugString(ap->appClass->strf("option[%s]\n", option.data()));
 			}
 			if (element["timing"].is<double>()) {
 				timing = { (RUN_TIMING)(int)element["timing"].get<double>() };
-				OutputDebugString(ap->appClass->strf("timing:%d\n", timing.back()));
 			} else if (element["timing"].is<picojson::array>()) {
 				auto a = element["timing"].get<picojson::array>();
 				for (auto count = 0; count < a.size(); ++count) {
 					if (a[count].is<double>()) {
 						timing.push_back((RUN_TIMING)(int)a[count].get<double>());
-						OutputDebugString(ap->appClass->strf("%d", timing.back()));
 					}
 				}
-				OutputDebugString("\n");
 			}
-			OutputDebugString("\n");
 
 			char iconName[MAX_PATH];
 			if (iconPath.empty()) {
@@ -214,20 +256,13 @@ class modules {
 				ap->imgs->load((char*)iconPath.data(), iconName);
 			}
 
-			this->add(iconName, type, &timing);
-
+			this->make(iconName, type, &timing, true);
+			
 			switch (type) {
-			case TOOL::T_FILE:
-				if (option.size()) {
-					filePath.append(" ");
-					filePath.append(option.data());
-				}
-
-				this->back().command((char*)filePath.c_str());
+			case T_FILE:
+			case T_FUNC:
+				this->back().init((char*)filePath.data(), (char*)option.data());
 				break;
-
-			case TOOL::T_FUNC:
-				this->back().library((char*)filePath.data(), (char*)option.data());
 			}
 		}
 	}
@@ -238,18 +273,26 @@ public:
 	}
 
 	// 新しい要素を追加
-	void add(char* newIconName, TOOL newType, std::vector<RUN_TIMING>* newTiming)
+	module& make(char* newIconName, TOOL newType, std::vector<RUN_TIMING>* newTiming, bool saved)
 	{
-		tooltips.push_back({ newIconName, newType, newTiming });
+		locked = true;
+		tooltips.push_back({ newIconName, newType, newTiming, saved });
+		locked = false;
+		return back();
 	}
-	// 新しい要素を追加
+	module& add(char* newIconName, TOOL newType, std::vector<RUN_TIMING>* newTiming)
+	{
+		return make(newIconName, newType, newTiming, false);
+	}
 	void add(char* newIconName, TOOL newType, RUN_TIMING newTiming)
 	{
+		locked = true;
 		tooltips.push_back({ newIconName, newType, newTiming });
+		locked = false;
 	}
 
 	// 最後にpush_backした要素を返す
-	module back()
+	module& back()
 	{
 		return tooltips.back();
 	}
@@ -259,14 +302,21 @@ public:
 	{
 		return tooltips.size();
 	}
-	void resize(size_t newSize)
+
+	// 実行
+	bool execute(size_t id, appinfo* ap)
 	{
-		tooltips.resize(newSize);
+		if (locked) {
+			return false;
+		}
+		return tooltips[id].execute(ap);
 	}
 
 	// ファイルの列挙をしてjson読み込み
 	void readExtension(appinfo* ap, char* startDirectory, char* extensions)
 	{
+		locked = true;
+
 		HANDLE hFind;
 		WIN32_FIND_DATA wfd;
 
@@ -290,5 +340,43 @@ public:
 		} while (FindNextFile(hFind, &wfd));
 
 		FindClose(hFind);
+
+		locked = false;
+	}
+
+	// 保存してないモジュールのみ保存(全部一つのファイルに保存される)
+	void saveExtension(appinfo* ap)
+	{
+		using namespace picojson;
+		object base;
+		size_t contentCount = 0;
+
+		ap->c->gettime();
+		for (auto count = 0; count < tooltips.size(); ++count) {
+			if (tooltips[count].isSaved()) {
+				continue;
+			}
+			object o;
+			tooltips[count].insertObject(&o);
+			base.insert(std::make_pair(
+				ap->appClass->strf("%d_ext", ++contentCount),
+				value(o)
+			));
+		}
+
+		if (!contentCount) {
+			OutputDebugString("nothing is adding extension\n");
+			return;
+		}
+
+		std::ofstream myExtension("mods/myex.json");
+		if (!myExtension) {
+			OutputDebugString(ap->appClass->strf("[%d,%d]", myExtension.badbit, myExtension.failbit));
+			OutputDebugString("could't open mods file\n");
+		}
+
+		auto content = value(base).serialize(true);
+		myExtension << content.data();
+		myExtension.close();
 	}
 };
