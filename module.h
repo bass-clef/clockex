@@ -55,19 +55,19 @@ public:
 	module() {}
 	module(char* iconName, TOOL type, RUN_TIMING timing)
 	{
-		this->iconName = iconName;
+		this->iconName.assign(iconName);
 		this->type = type;
 		this->timing.push_back(timing);
 	}
 	module(char* iconName, TOOL type, std::vector<RUN_TIMING>* timing)
 	{
-		this->iconName = iconName;
+		this->iconName.assign(iconName);
 		this->type = type;
 		this->timing = *timing;
 	}
 	module(char* iconName, TOOL type, std::vector<RUN_TIMING>* timing, bool saved)
 	{
-		this->iconName = iconName;
+		this->iconName.assign(iconName);
 		this->type = type;
 		this->timing = *timing;
 		this->saved = saved;
@@ -81,6 +81,16 @@ public:
 	const char* name()
 	{
 		return this->iconName.data();
+	}
+
+	const char* file()
+	{
+		if (address.size()) {
+			return address.data();
+		}
+		if (iconName.size()) {
+			return iconName.data();
+		}
 	}
 
 	bool isSaved()
@@ -97,7 +107,8 @@ public:
 	// ファイルをオプション付きで実行
 	void exec(appinfo* ai)
 	{
-		std::string file = address.data();
+		std::string file;
+		file.append(address.data());
 
 		if (option.size()) {
 			file.append(" ");
@@ -175,7 +186,6 @@ public:
 	void insertObject(picojson::object* o)
 	{
 		o->insert(std::make_pair("type", picojson::value((double)type)));
-		o->insert(std::make_pair("icon", picojson::value((char*)iconName.data())));
 
 		if (1 < timing.size()) {
 			picojson::array a;
@@ -192,6 +202,12 @@ public:
 		case T_FILE: case T_FUNC:
 			o->insert(std::make_pair("file", picojson::value((char*)address.data())));
 			o->insert(std::make_pair("option", picojson::value((char*)option.data())));
+			if (address == iconName) {
+				break;
+			}
+
+		default:
+			o->insert(std::make_pair("icon", picojson::value((char*)iconName.data())));
 		}
 
 		saved = true;
@@ -224,6 +240,7 @@ class modules {
 		std::vector<RUN_TIMING> timing;
 
 		for (auto it = o.begin(); it != o.end(); it++) {
+			iconPath.clear();
 			auto element = it->second.get<picojson::object>();
 
 			if (element["type"].is<double>()) {
@@ -249,11 +266,11 @@ class modules {
 				}
 			}
 
-			char iconName[MAX_PATH];
+			char iconName[MAX_PATH] = "";
 			if (iconPath.empty()) {
-				ap->imgs->loadIcon((char*)filePath.data(), iconName);
+				ap->imgs->loadIcon((char*)filePath.c_str(), iconName);
 			} else {
-				ap->imgs->load((char*)iconPath.data(), iconName);
+				ap->imgs->load((char*)iconPath.c_str(), iconName);
 			}
 
 			this->make(iconName, type, &timing, true);
@@ -347,21 +364,26 @@ public:
 	// 保存してないモジュールのみ保存(全部一つのファイルに保存される)
 	void saveExtension(appinfo* ap)
 	{
-		using namespace picojson;
-		object base;
+		picojson::object base;
 		size_t contentCount = 0;
+		std::string representative;
 
-		ap->c->gettime();
 		for (auto count = 0; count < tooltips.size(); ++count) {
 			if (tooltips[count].isSaved()) {
 				continue;
 			}
-			object o;
+			picojson::object o;
 			tooltips[count].insertObject(&o);
 			base.insert(std::make_pair(
 				ap->appClass->strf("%d_ext", ++contentCount),
-				value(o)
+				picojson::value(o)
 			));
+
+			if (representative.empty()) {
+				if (lstrlen(tooltips[count].file())) {
+					representative.assign(tooltips[count].file());
+				}
+			}
 		}
 
 		if (!contentCount) {
@@ -369,14 +391,47 @@ public:
 			return;
 		}
 
-		std::ofstream myExtension("mods/myex.json");
-		if (!myExtension) {
-			OutputDebugString(ap->appClass->strf("[%d,%d]", myExtension.badbit, myExtension.failbit));
-			OutputDebugString("could't open mods file\n");
+		std::string fileName;
+		if (representative.empty()) {
+			ap->c->gettime();
+			fileName = ap->appClass->strf("mods\\myex_%d_%02d%02d.json",
+				ap->c->year(), ap->c->mon(), ap->c->day(), ap->c->hour(), ap->c->minute());
+		} else {
+			fileName.resize(MAX_PATH);
+			GetFileTitle(representative.data(), (char*)fileName.c_str(), MAX_PATH);
+			fileName = ap->appClass->strf("mods\\ex_%s.json", fileName.data());
 		}
 
-		auto content = value(base).serialize(true);
+	retrypoint:
+		std::fstream myExtension;
+		myExtension.open(fileName, std::ios::in);
+		if (myExtension) {
+			myExtension.close();
+			const char* message = ap->appClass->strf(
+				"保存するファイル名が重複しています ->\n[%s]\n\n中止\t: ファイルの上書きをやめる\n再試行\t: ファイルを変更した\n無視\t: 上書きする",
+				fileName.data()
+			);
+			auto result = MessageBox(nullptr,
+				message, "clockex - 拡張ツールの保存",
+				MB_ABORTRETRYIGNORE | MB_ICONWARNING
+			);
+
+			switch (result) {
+			case IDABORT:	// 中止
+				return;
+			case IDRETRY:	// 再試行
+				goto retrypoint;
+			}
+		}
+
+		myExtension.open(fileName, std::ios::out | std::ios::trunc | std::ios::binary);
+		if (!myExtension) {
+			OutputDebugString("could't open mods file -> \"");
+			OutputDebugString(fileName.data());
+			OutputDebugString("\"");
+		}
+
+		auto content = picojson::value(base).serialize(true);
 		myExtension << content.data();
-		myExtension.close();
 	}
 };

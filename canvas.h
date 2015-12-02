@@ -360,7 +360,7 @@ template<typename parent, typename nameType> class image
 
 private:
 	// ファイルの重複確認
-	bool isRegistered(HANDLE hFile, std::pair<unsigned long, unsigned long>* hashs)
+	bool isRegistered(HANDLE& hFile, std::pair<unsigned long, unsigned long>* hashs)
 	{
 		// 重複してない場合hash値を代入
 		BY_HANDLE_FILE_INFORMATION bhfi;
@@ -372,6 +372,7 @@ private:
 			if (bhfi.nFileIndexLow == fileHash.first && bhfi.nFileIndexHigh == fileHash.second) {
 				CloseHandle(hFile);
 				hFile = nullptr;
+				break;
 			}
 		}
 		if (nullptr == hFile) {
@@ -394,7 +395,6 @@ private:
 
 		// 画像ファイル重複確認
 		if (isRegistered(hFile, hashs)) {
-			CloseHandle(hFile);
 			return nullptr;
 		}
 
@@ -460,7 +460,6 @@ public:
 		}
 
 		this->info[name] = std::make_pair(bitmaps.size(), hashs);
-
 		bitmaps.push_back(new Gdiplus::Bitmap(is));
 
 		is->Release();
@@ -469,18 +468,8 @@ public:
 	// 画像を読み込んで自動的にエイリアス割り付け
 	void load(char* fileName, char* name)
 	{
-		std::pair<unsigned long, unsigned long> hashs;
-		IStream* is = getFileIStream(fileName, &hashs);
-		if (nullptr == is) {
-			return;
-		}
-
-		GetFileTitle(fileName, name, MAX_PATH);
-
-		this->info[name] = std::make_pair(bitmaps.size(), hashs);
-		bitmaps.push_back(new Gdiplus::Bitmap(is));
-
-		is->Release();
+		strcpy_s(name, MAX_PATH, fileName);
+		this->load(fileName, (nameType)name);
 	}
 
 	// ファイルアイコン取得
@@ -493,7 +482,6 @@ public:
 		}
 		std::pair<unsigned long, unsigned long> hashs;
 		if (isRegistered(hFile, &hashs)) {
-			CloseHandle(hFile);
 			return;
 		}
 		CloseHandle(hFile);
@@ -507,26 +495,8 @@ public:
 	}
 	void loadIcon(char* fileName, char* name)
 	{
-		HANDLE hFile;
-		hFile = CreateFile(fileName, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-		if (nullptr == hFile) {
-			return;
-		}
-		std::pair<unsigned long, unsigned long> hashs;
-		if (isRegistered(hFile, &hashs)) {
-			CloseHandle(hFile);
-			return;
-		}
-		CloseHandle(hFile);
-
-		GetFileTitle(fileName, name, MAX_PATH);
-
-		this->info[name] = std::make_pair(bitmaps.size(), hashs);
-
-		WORD iIcon = 0;
-		HICON hIcon = ExtractAssociatedIcon(nullptr, fileName, &iIcon);
-
-		bitmaps.push_back(new Gdiplus::Bitmap(hIcon));
+		strcpy_s(name, MAX_PATH, fileName);
+		this->loadIcon(fileName, (nameType)name);
 	}
 
 	size_t getIndex(nameType name)

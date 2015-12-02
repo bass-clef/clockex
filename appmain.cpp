@@ -4,16 +4,22 @@
 bug:
 //ファイルが開けない  DlgProcはbool値を返す,DefWindowProcによって代わりに違う処理がされていた?
 //exeファイル,addressの中身が突如消失して実行できない	push_back と [] での作成に差がある,あそらく別スレッドで作成した時のみおこるであろう
+拡張ツールの初回起動(ファイルのみ確認)時にエラー(ファイル名が正しくない(おそらく初回代入されてない))
 
 issue:
 //・canvas::image::loads関数の実装	そんなに必要そうでないため保留
 ・jsonファイルの読込/保存
-	// 読み込み
-	json保存
-		比較してないものだけcreate
+//	 読み込み
+//	json保存
+//		比較してないものだけcreate
+//		iconフルパスの保存
 ・各ツールの呼び出しキューの作成
 	RT_ADD時にキューの更新
 
+
+・ツールの位置保存
+・重複関数をまとめる
+	module追加(switch,)
 */
 
 
@@ -62,6 +68,7 @@ namespace {
 		r, rHour, rMinute, rIcons = 75,					// 針の長さ
 		hwidth, hheight;								// ウィンドウ半分のサイズ
 	int selId;											// 選択されたツールチップID
+	char currentDir[MAX_PATH];
 
 	/*
 	:ファイルに保存するもの:
@@ -180,13 +187,10 @@ LRESULT __stdcall DlgProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp)
 			if (1 < iconFileName.size()) {
 				// アイコンファイル読み込み
 				imgs.load((char*)iconFileName.data(), iconName);
-				OutputDebugString(ai.appClass->strf("%s\n", iconName));
+				OutputDebugString(ai.appClass->strf("icon file load -> \"%s\"\n", iconName));
 			}
-			if (0 == strcmp(iconName, "")) {
+			if (!strcmp(iconName, "")) {
 				// ファイルアイコン用のUUIDの文字列版を作成,ファイルからアイコン取得
-				UUID uuid;
-				UuidCreate(&uuid);
-				UuidToString(&uuid, (unsigned char**)&iconName);
 				imgs.loadIcon((char*)fileName.data(), iconName);
 			}
 
@@ -287,6 +291,7 @@ void app::init(form* window, canvas<form>* cf, HINSTANCE hInst, UINT nCmd)
 	imgs.init(window);
 
 	// ツールチップ初期化
+	GetCurrentDirectory(MAX_PATH, currentDir);
 	tooltips.readExtension(&ai, "mods\\", "*.json");
 	
 	// ツールの実行
@@ -300,6 +305,7 @@ void app::exit()
 	// ツールの実行
 	ai.timing = RUN_TIMING::RT_EXIT;
 
+	SetCurrentDirectory(currentDir);
 	tooltips.saveExtension(&ai);
 }
 
