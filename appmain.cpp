@@ -5,6 +5,11 @@ bug:
 //ファイルが開けない  DlgProcはbool値を返す,DefWindowProcによって代わりに違う処理がされていた?
 //exeファイル,addressの中身が突如消失して実行できない	push_back と [] での作成に差がある,あそらく別スレッドで作成した時のみおこるであろう
 拡張ツールの初回起動(ファイルのみ確認)時にエラー(ファイル名が正しくない(おそらく初回代入されてない))
+	std::string file なくしてから最近なってない -> 治った?
+RUN_TIMINGキューがきいてない
+	exqueに追加されてない
+		addがよばれてない
+
 
 issue:
 //・canvas::image::loads関数の実装	そんなに必要そうでないため保留
@@ -14,12 +19,17 @@ issue:
 //		比較してないものだけcreate
 //		iconフルパスの保存
 ・各ツールの呼び出しキューの作成
-	RT_ADD時にキューの更新
+//	RT_ADD時にキューの再作成
+//	RT_ADD時 -> tooltips から deque に読み取り
+//	キューの読み取りは 
+
+//	RT_BEGIN	if (RT_BEGIN) { push_front } else { a = front; push_front b; push_front a; }
 
 
 ・ツールの位置保存
 ・重複関数をまとめる
-	module追加(switch,)
+	module追加				switch
+・c++11の書き方に変更する	for(count)
 */
 
 
@@ -32,6 +42,7 @@ issue:
 
 #include "appmain.h"
 #include "module.h"
+#include "tasklist.h"
 #include "resource.h"
 
 #pragma comment(lib, "Rpcrt4.lib")
@@ -57,6 +68,7 @@ namespace {
 	modules tooltips;				// ツールチップ管理
 	pen<form, std::string> p;		// ペン管理
 	image<form, std::string> imgs;	// 画像管理
+	tasklist exque;					// 実行タイミング管理
 
 	COLORREF transColor, backColor, appColor, selBackColor;
 	POINT mousePos, prevSecPos;
@@ -72,20 +84,12 @@ namespace {
 
 	/*
 	:ファイルに保存するもの:
-	clockex.ini {
-		tooltips数(int)
-		icons数
-	}
 	tooltips {
 		タイプ(int)							T_EXIT / T_ADD / T_FILE / T_FUNC		T_EXIT,T_ADDは完全パス,オプション名なし/T_FUNCはcanvas,windowのポインタを渡す引数固定
 		ファイル完全パス(size_t,char*)		ファイル名,dll名
 		オプション/関数名(size_t,char*)		T_FILE:オプション T_FUNC:関数名
 		アイコン名(size_t,char*)			iconsで読み込みしたエイリアス名(おそらく自動的に割り付け)
 		動作するタイミング(int)				init,calc,draw,exit それぞれ複数選択可
-	}
-	icons {
-		アイコンパス(size_t,char*)
-		エイリアス名(size_t,char*)
 	}
 
 	:json形式:
@@ -103,7 +107,7 @@ namespace {
 
 
 // サブウィンドウのWinMsgコールバック
-LRESULT __stdcall DlgProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp)
+INT_PTR __stdcall DlgProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp)
 {
 	switch (uMsg) {
 	case WM_INITDIALOG: {
@@ -204,6 +208,7 @@ LRESULT __stdcall DlgProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp)
 				break;
 			}
 
+			ai.exque->add(m);
 			EndDialog(hWnd, IDOK);
 			break;
 		}
@@ -252,6 +257,7 @@ void app::init(form* window, canvas<form>* cf, HINSTANCE hInst, UINT nCmd)
 	ai.p = &p;
 	ai.imgs = &imgs;
 	ai.tooltips = &tooltips;
+	ai.exque = &exque;
 
 	HICON hIcon = LoadIcon(hInst, (LPCSTR)IDI_ICON1);
 	window->makeClass(hInst, "clockex", WndProc, 3U, hIcon);
@@ -293,9 +299,10 @@ void app::init(form* window, canvas<form>* cf, HINSTANCE hInst, UINT nCmd)
 	// ツールチップ初期化
 	GetCurrentDirectory(MAX_PATH, currentDir);
 	tooltips.readExtension(&ai, "mods\\", "*.json");
+	exque.allocation(tooltips);
 	
 	// ツールの実行
-
+	exque[ai.timing].execute(&ai);
 }
 
 
@@ -304,6 +311,7 @@ void app::exit()
 {
 	// ツールの実行
 	ai.timing = RUN_TIMING::RT_EXIT;
+	exque[ai.timing].execute(&ai);
 
 	SetCurrentDirectory(currentDir);
 	tooltips.saveExtension(&ai);
@@ -315,19 +323,46 @@ bool app::main()
 {
 	// ツールの実行
 	ai.timing = RUN_TIMING::RT_CALC;
+	exque[ai.timing].execute(&ai);
+
+	// 計算
+	// true が帰ってくると終了
+	if (calc()) return true;
 
 
+	// ツールの実行
+	ai.timing = RUN_TIMING::RT_DRAW;
+	exque[ai.timing].execute(&ai);
+
+	// 描画の抑制
+	POINT secPos = { cos(secAngle)*r, sin(secAngle)*r };
+	if (prevSecPos.x == secPos.x && prevSecPos.y == secPos.y) {
+		return false;
+	}
+	prevSecPos.x = secPos.x;
+	prevSecPos.y = secPos.y;
+
+	// 描画
+	draw();
+
+	return false;
+}
+
+
+// 計算
+bool app::calc()
+{
 	// ツールの表示
 	if (!opened && false == opening && 0x8000 & GetAsyncKeyState(VK_RBUTTON)) {	// 右クリックで表示
 		GetCursorPos(&mousePos);
 		GetWindowRect(*window, &windowPos);
-		
+
 		if (sqrt(pow(windowPos.left + basex + hwidth - mousePos.x, 2) + powf(windowPos.top + basey + hheight - mousePos.y, 2)) < r) {
 			opening = true;
 		}
 	}
 	if (opening) {
-		float r = sin(M_PI_2 / openingCountMax * openingCount) * resizeMax, outr = r*2;
+		float r = sin(M_PI_2 / openingCountMax * openingCount) * resizeMax, outr = r * 2;
 		if ((int)openingCount < (int)openingCountMax) {
 			openingCount++;
 		} else {
@@ -342,8 +377,8 @@ bool app::main()
 			windowSize(initwidth() - outr, initheight() - outr);
 		} else {
 			rIcons = rInitIcons + r;
-			basex = 50.0-r;
-			basey = 50.0-r;
+			basex = 50.0 - r;
+			basey = 50.0 - r;
 			windowSize(initwidth() - 100 + outr, initheight() - 100 + outr);
 		}
 	}
@@ -389,36 +424,18 @@ bool app::main()
 		selId = TOOL::T_NOTSELECTED;
 	}
 
-	
+
 	// 現在時刻の取得
 	c.gettime();
 	secAngle = degrad(angleMinute * c.second() + angleMinute / 1000.0 * c.milli());
 	minAngle = degrad(angleMinute * c.minute());
 	hourAngle = degrad(angleHour * c.hhour() + angleMinute / 12.0 * c.minute());
-
-
-	// ツールの実行
-	ai.timing = RUN_TIMING::RT_DRAW;
-
-
-	// 描画の抑制
-	POINT secPos = { cos(secAngle)*r, sin(secAngle)*r };
-	if (prevSecPos.x == secPos.x && prevSecPos.y == secPos.y) {
-		return false;
-	}
-	prevSecPos.x = secPos.x;
-	prevSecPos.y = secPos.y;
-
-
-	// 描画
-	draw();
-
 	return false;
 }
 
 
 // 描画
-int app::draw()
+bool app::draw()
 {
 	// 背景
 	cf->basepos(0, 0);

@@ -35,7 +35,8 @@ public:
 	virtual void init(form* window, canvas<form>* cf, HINSTANCE hInst, UINT nCmd);
 	virtual void exit();
 	virtual bool main();
-	virtual int draw();
+	virtual bool calc();
+	virtual bool draw();
 	virtual void windowSize(int width, int height);
 
 	int width() { return size.cx; }
@@ -79,6 +80,7 @@ public:
 
 // appmainで使うクラスまとめ
 class modules;
+class tasklist;
 struct appinfo
 {
 	enum RUN_TIMING timing;	// 前回のタイミング
@@ -91,4 +93,5 @@ struct appinfo
 	pen<form, std::string>* p;		// ペン管理
 	image<form, std::string>* imgs;	// 画像管理
 	modules* tooltips;				// ツールチップ管理
+	tasklist* exque;				// 実行タイミング管理
 };

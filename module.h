@@ -11,16 +11,18 @@
 
 
 // プロトタイプ宣言
-LRESULT __stdcall DlgProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp);
+INT_PTR __stdcall DlgProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp);
 
 
 // 実行タイミングを表す
 enum RUN_TIMING {
 	RT_SELECT,	// 選択時
 	RT_INIT,	// 初期化時(clockex自体の初期化処理の後)	初期変数の改変など
-	RT_CALC,	// 計算時(clockex自体の計算処理の後)		変数の改変
-	RT_DRAW,	// 描画時(clockex自体の描画処理の前)		描画の中断,フック
+	RT_CALC,	// 計算時(clockex自体の計算処理の前)		計算処理の中断
+	RT_DRAW,	// 描画時(clockex自体の描画処理の前)		処理後の変数の改変,描画の中断
 	RT_EXIT,	// 終了時(clockex自体の終了処理の前)
+	RT_FIRST,	// 一番最初に実行する	この後に読み込まれたRT_FIRST持ちの拡張によって上書きされる,上書きされた場合 2番目以降にもなりうる
+	RT_LAST,	// 一番最後に実行する	同上
 };
 
 // ツールの種類を表す
@@ -49,6 +51,44 @@ class module
 			return true;
 		}
 		return false;
+	}
+
+	// ファイルをオプション付きで実行
+	void exec(appinfo* ai)
+	{
+		std::thread execute([&]() {
+			SHELLEXECUTEINFO sei = { 0 };
+			sei.cbSize = sizeof(sei);
+			sei.hwnd = (HWND)*ai->window;
+			sei.nShow = SW_SHOWNORMAL;
+			sei.fMask = SEE_MASK_NOCLOSEPROCESS;
+			sei.lpFile = address.data();
+			sei.lpParameters = option.data();
+			if (!ShellExecuteEx(&sei) || (const int)sei.hInstApp <= 32) {
+				result = (long)sei.hInstApp;
+				return;
+			}
+
+			WaitForSingleObject(sei.hProcess, INFINITE);
+			result = (long)sei.hInstApp;
+		});
+		execute.detach();
+	}
+	// module関数にappinfoを渡して呼び出し
+	void func(appinfo* ai)
+	{
+		std::thread execute([&]() {
+			typedef bool(*proc_type)(appinfo*);
+
+			HMODULE hModule = LoadLibrary(option.data());
+
+			proc_type proc = (proc_type)GetProcAddress(hModule, address.data());
+
+			result = proc(ai);
+
+			FreeLibrary(hModule);
+		});
+		execute.detach();
 	}
 public:
 
@@ -91,12 +131,30 @@ public:
 		if (iconName.size()) {
 			return iconName.data();
 		}
+
+		return nullptr;
 	}
 
+	const std::vector<RUN_TIMING> runTiming()
+	{
+		return this->timing;
+	}
+
+	// ファイルに保存されてるものを読み込んだか
 	bool isSaved()
 	{
 		return saved;
 	}
+
+	bool isFirst()
+	{
+		return timing.end() != std::find(timing.begin(), timing.end(), RT_FIRST);
+	}
+	bool isLast()
+	{
+		return timing.end() != std::find(timing.begin(), timing.end(), RT_LAST);
+	}
+	
 
 	void init(char* address, char* option)
 	{
@@ -104,51 +162,6 @@ public:
 		this->option = option;
 	}
 
-	// ファイルをオプション付きで実行
-	void exec(appinfo* ai)
-	{
-		std::string file;
-		file.append(address.data());
-
-		if (option.size()) {
-			file.append(" ");
-			file.append((char*)option.data());
-		}
-
-		std::thread execute([&]() {
-			SHELLEXECUTEINFO sei = { 0 };
-			sei.cbSize = sizeof(sei);
-			sei.hwnd = (HWND)*ai->window;
-			sei.nShow = SW_SHOWNORMAL;
-			sei.fMask = SEE_MASK_NOCLOSEPROCESS;
-			sei.lpFile = file.data();
-			if (!ShellExecuteEx(&sei) || (const int)sei.hInstApp <= 32) {
-				result = (long)sei.hInstApp;
-				return;
-			}
-
-			WaitForSingleObject(sei.hProcess, INFINITE);
-			result = (long)sei.hInstApp;
-
-		});
-		execute.detach();
-	}
-	// module関数にappinfoを渡して呼び出し
-	void func(appinfo* ai)
-	{
-		std::thread execute([&]() {
-			typedef bool(*proc_type)(appinfo*);
-
-			HMODULE hModule = LoadLibrary(option.data());
-
-			proc_type proc = (proc_type)GetProcAddress(hModule, address.data());
-
-			result = proc(ai);
-
-			FreeLibrary(hModule);
-		});
-		execute.detach();
-	}
 
 	// 実行
 	bool execute(appinfo* ap)
@@ -374,13 +387,15 @@ public:
 			}
 			picojson::object o;
 			tooltips[count].insertObject(&o);
+			o.insert(std::make_pair("order", picojson::value((double)count)));
+
 			base.insert(std::make_pair(
 				ap->appClass->strf("%d_ext", ++contentCount),
 				picojson::value(o)
 			));
 
 			if (representative.empty()) {
-				if (lstrlen(tooltips[count].file())) {
+				if (nullptr != tooltips[count].file()) {
 					representative.assign(tooltips[count].file());
 				}
 			}
