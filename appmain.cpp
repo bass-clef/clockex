@@ -20,10 +20,11 @@ issue:
 //		iconフルパスの保存
 //		ツールの位置保存	json に order を追加
 //		typeとtimingのjsonでの定数化
-//・各ツールの呼び出しキューの作成
+・各ツールの呼び出しキューの作成
 //	RT_ADD時にキューの再作成
 //	RT_ADD時 -> tooltips から deque に読み取り
-//	キューの読み取りは //	RT_BEGIN	if (RT_BEGIN) { push_front } else { a = front; push_front b; push_front a; }
+//	キューの読み取りは 
+//		RT_BEGIN	if (RT_BEGIN) { push_front } else { a = front; push_front b; push_front a; }
 ・ツールの削除機能,候補(一定時間選択)
 
 

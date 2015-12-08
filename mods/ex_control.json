@@ -1,0 +1,10 @@
+{
+  "1_ext": {
+    "file": "control",
+    "icon": "D:\\Document\\Visual Studio 2015\\Projects\\Project1\\Project1\\icons\\glyphicons-281-settings.png",
+    "option": "",
+    "order": 2,
+    "timing": "RT_SELECT",
+    "type": "T_FILE"
+  }
+}
