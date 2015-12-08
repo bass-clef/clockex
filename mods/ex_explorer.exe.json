@@ -1,0 +1,9 @@
+{
+  "1_ext": {
+    "file": "C:\\Windows\\explorer.exe",
+    "option": "",
+    "order": 4,
+    "timing": "RT_SELECT",
+    "type": "T_FILE"
+  }
+}

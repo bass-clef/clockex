@@ -1,0 +1,10 @@
+{
+  "1_ext": {
+    "file": "taskmgr.exe",
+    "icon": "D:\\Document\\Visual Studio 2015\\Projects\\Project1\\Project1\\icons\\glyphicons-41-stats.png",
+    "option": "",
+    "order": 5,
+    "timing": "RT_SELECT",
+    "type": "T_FILE"
+  }
+}

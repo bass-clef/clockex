@@ -18,15 +18,16 @@ issue:
 //	json保存
 //		比較してないものだけcreate
 //		iconフルパスの保存
+//		ツールの位置保存	json に order を追加
+//		typeとtimingのjsonでの定数化
 ・各ツールの呼び出しキューの作成
 //	RT_ADD時にキューの再作成
 //	RT_ADD時 -> tooltips から deque に読み取り
 //	キューの読み取りは 
+//		RT_BEGIN	if (RT_BEGIN) { push_front } else { a = front; push_front b; push_front a; }
 
-//	RT_BEGIN	if (RT_BEGIN) { push_front } else { a = front; push_front b; push_front a; }
 
-
-・ツールの位置保存
+・ツールの削除機能,候補(一定時間選択)
 ・重複関数をまとめる
 	module追加				switch
 ・c++11の書き方に変更する	for(count)
@@ -60,7 +61,7 @@ namespace {
 	constexpr byte rowHeight = 2;
 	const std::vector<std::string>
 		comboText = { "ClockExの終了", "ツールの追加", "ファイル", "モジュール関数" },
-		listText = { "選択時", "初期化時", "計算時", "描画時", "終了時" };
+		listText = { "選択時", "初期化時", "計算時", "描画時", "終了時", "優先", "後回し" };
 
 	// 変数
 	appinfo ai;

@@ -1,0 +1,13 @@
+{
+  "1_ext": {
+    "file": "D:\\Document\\empty.bat",
+    "icon": "D:\\Document\\Visual Studio 2015\\Projects\\Project1\\Project1\\icons\\glyphicons-83-roundabout.png",
+    "option": "",
+    "order": 3,
+    "timing": [
+      "RT_SELECT",
+      "RT_INIT"
+    ],
+    "type": "T_FILE"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "0_exit":{
+    "icon":"icons\\glyphicons-208-remove-2.png",
+    "order": 0,
+    "type": "T_EXIT",
+    "timing": "RT_SELECT"
+  },
+  "1_add":{
+    "icon":"icons\\glyphicons-433-plus.png",
+    "order": 1,
+    "type": "T_ADD",
+    "timing": "RT_SELECT"
+  }
+}
+
+

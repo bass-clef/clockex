@@ -8,7 +8,7 @@
 
 #include "appmain.h"
 #include "resource.h"
-
+#include "interchangeable.h"
 
 // プロトタイプ宣言
 INT_PTR __stdcall DlgProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp);
@@ -21,6 +21,8 @@ enum RUN_TIMING {
 	RT_CALC,	// 計算時(clockex自体の計算処理の前)		計算処理の中断
 	RT_DRAW,	// 描画時(clockex自体の描画処理の前)		処理後の変数の改変,描画の中断
 	RT_EXIT,	// 終了時(clockex自体の終了処理の前)
+	RT_ADD,		// 追加時	自分自身の時も呼ばれる
+	RT_DELETE,	// 削除時	同上
 	RT_FIRST,	// 一番最初に実行する	この後に読み込まれたRT_FIRST持ちの拡張によって上書きされる,上書きされた場合 2番目以降にもなりうる
 	RT_LAST,	// 一番最後に実行する	同上
 };
@@ -33,6 +35,28 @@ enum TOOL {
 	T_FILE,		// ファイルを呼び出す
 	T_FUNC,		// 関数を呼び出す
 };
+
+// 実行タイミングと文字列の互換用
+const interchangeableClass<RUN_TIMING, const std::string> timingAndString = {
+	std::make_pair(RT_SELECT, "RT_SELECT"),
+	std::make_pair(RT_INIT, "RT_INIT"),
+	std::make_pair(RT_CALC, "RT_CALC"),
+	std::make_pair(RT_DRAW, "RT_DRAW"),
+	std::make_pair(RT_EXIT, "RT_EXIT"),
+	std::make_pair(RT_ADD, "RT_ADD"),
+	std::make_pair(RT_DELETE, "RT_DELETE"),
+	std::make_pair(RT_FIRST, "RT_FIRST"),
+	std::make_pair(RT_LAST, "RT_LAST"),
+};
+// 種類と文字列の互換用
+const interchangeableClass<TOOL, const std::string> toolAndString = {
+	std::make_pair(T_NOTSELECTED, "T_NOTSELECTED"),
+	std::make_pair(T_EXIT, "T_EXIT"),
+	std::make_pair(T_ADD, "T_ADD"),
+	std::make_pair(T_FILE, "T_FILE"),
+	std::make_pair(T_FUNC, "T_FUNC"),
+};
+
 
 // モジュール管理クラス
 class module
@@ -198,17 +222,17 @@ public:
 	// picojsonのオブジェクトに挿入
 	void insertObject(picojson::object* o)
 	{
-		o->insert(std::make_pair("type", picojson::value((double)type)));
+		o->insert(std::make_pair("type", picojson::value( toolAndString[type] )));
 
 		if (1 < timing.size()) {
 			picojson::array a;
 
 			for (auto count = 0; count < timing.size(); ++count) {
-				a.push_back(picojson::value((double)(int)timing[count]));
+				a.push_back(picojson::value( timingAndString[timing[count]] ));
 			}
 			o->insert(std::make_pair("timing", picojson::value(a)));
 		} else {
-			o->insert(std::make_pair("timing", picojson::value((double)(int)timing.back())));
+			o->insert(std::make_pair("timing", picojson::value( timingAndString[timing.back()] )));
 		}
 
 		switch (type) {
@@ -250,14 +274,16 @@ class modules {
 		
 		std::string filePath, iconPath, option;
 		TOOL type;
+		size_t order;
 		std::vector<RUN_TIMING> timing;
 
 		for (auto it = o.begin(); it != o.end(); it++) {
 			iconPath.clear();
+			order = -1;
 			auto element = it->second.get<picojson::object>();
 
-			if (element["type"].is<double>()) {
-				type = (TOOL)(int)element["type"].get<double>();
+			if (element["type"].is<std::string>()) {
+				type = toolAndString[element["type"].get<std::string>()];
 			}
 			if (element["file"].is<std::string>()) {
 				filePath.assign(element["file"].get<std::string>().data());
@@ -268,13 +294,16 @@ class modules {
 			if (element["option"].is<std::string>()) {
 				option.assign(element["option"].get<std::string>().data());
 			}
-			if (element["timing"].is<double>()) {
-				timing = { (RUN_TIMING)(int)element["timing"].get<double>() };
+			if (element["order"].is<double>()) {
+				order = (size_t)element["order"].get<double>();
+			}
+			if (element["timing"].is<std::string>()) {
+				timing = { timingAndString[element["timing"].get<std::string>()] };
 			} else if (element["timing"].is<picojson::array>()) {
 				auto a = element["timing"].get<picojson::array>();
 				for (auto count = 0; count < a.size(); ++count) {
-					if (a[count].is<double>()) {
-						timing.push_back((RUN_TIMING)(int)a[count].get<double>());
+					if (a[count].is<std::string>()) {
+						timing.push_back( timingAndString[a[count].get<std::string>()] );
 					}
 				}
 			}
@@ -286,12 +315,17 @@ class modules {
 				ap->imgs->load((char*)iconPath.c_str(), iconName);
 			}
 
-			this->make(iconName, type, &timing, true);
+			module m;
+			if (-1 != order) {
+				m = this->add(order, iconName, type, &timing, true);
+			} else {
+				m = this->make(iconName, type, &timing, true);
+			}
 			
 			switch (type) {
 			case T_FILE:
 			case T_FUNC:
-				this->back().init((char*)filePath.data(), (char*)option.data());
+				m.init((char*)filePath.data(), (char*)option.data());
 				break;
 			}
 		}
@@ -305,9 +339,7 @@ public:
 	// 新しい要素を追加
 	module& make(char* newIconName, TOOL newType, std::vector<RUN_TIMING>* newTiming, bool saved)
 	{
-		locked = true;
 		tooltips.push_back({ newIconName, newType, newTiming, saved });
-		locked = false;
 		return back();
 	}
 	module& add(char* newIconName, TOOL newType, std::vector<RUN_TIMING>* newTiming)
@@ -316,9 +348,17 @@ public:
 	}
 	void add(char* newIconName, TOOL newType, RUN_TIMING newTiming)
 	{
-		locked = true;
 		tooltips.push_back({ newIconName, newType, newTiming });
-		locked = false;
+	}
+	module& add(size_t id, char* newIconName, TOOL newType, std::vector<RUN_TIMING>* newTiming, bool saved)
+	{
+		if (tooltips.size() <= id) {
+			tooltips.resize(id + 1);
+		}
+		if (!tooltips[id]) {
+			OutputDebugString("module duplex write\n");
+		}
+		return tooltips[id] = { newIconName, newType, newTiming, saved };
 	}
 
 	// 最後にpush_backした要素を返す
@@ -331,6 +371,18 @@ public:
 	size_t size()
 	{
 		return tooltips.size();
+	}
+
+	// 空のmoduleの削除
+	void eraseEmpty()
+	{
+		auto it = tooltips.begin();
+		while (it != tooltips.end()) {
+			if (it->runTiming().empty()) {
+				OutputDebugString("erase timing empty module\n");
+				it = tooltips.erase(it);
+			} else ++it;
+		}
 	}
 
 	// 実行
@@ -371,15 +423,22 @@ public:
 
 		FindClose(hFind);
 
+		this->eraseEmpty();
+
 		locked = false;
 	}
 
 	// 保存してないモジュールのみ保存(全部一つのファイルに保存される)
 	void saveExtension(appinfo* ap)
 	{
+		locked = true;
+
 		picojson::object base;
 		size_t contentCount = 0;
 		std::string representative;
+
+		this->eraseEmpty();
+		ap->c->gettime();
 
 		for (auto count = 0; count < tooltips.size(); ++count) {
 			if (tooltips[count].isSaved()) {
@@ -390,7 +449,7 @@ public:
 			o.insert(std::make_pair("order", picojson::value((double)count)));
 
 			base.insert(std::make_pair(
-				ap->appClass->strf("%d_ext", ++contentCount),
+				ap->appClass->strf("%d_ex_%d_%02d%02d", ++contentCount, ap->c->year(), ap->c->mon(), ap->c->day()),
 				picojson::value(o)
 			));
 
@@ -408,7 +467,6 @@ public:
 
 		std::string fileName;
 		if (representative.empty()) {
-			ap->c->gettime();
 			fileName = ap->appClass->strf("mods\\myex_%d_%02d%02d.json",
 				ap->c->year(), ap->c->mon(), ap->c->day(), ap->c->hour(), ap->c->minute());
 		} else {
@@ -448,5 +506,7 @@ public:
 
 		auto content = picojson::value(base).serialize(true);
 		myExtension << content.data();
+
+		locked = false;
 	}
 };
