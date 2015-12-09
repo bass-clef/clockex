@@ -33,13 +33,13 @@ public:
 		}
 	}
 
-	// get classB from classA
+	// classA‚©‚çclassB‚ðŽæ“¾
 	classB operator[](classA a) const
 	{
 		return secondFromFirst(a);
 	}
 
-	// get classA from classB
+	// classB‚©‚çclassA‚ðŽæ“¾
 	classA operator[](classB b) const
 	{
 		return firstFromSecond(b);

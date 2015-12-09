@@ -20,7 +20,7 @@ public:
 		moduleList.clear();
 	}
 
-	// moduleList に module のポインタを追加(tasklist内で重複するので実態コピーは避けること)
+	// moduleList に module のポインタを追加
 	void add(module* m)
 	{
 		if (!moduleList.empty()) {
@@ -76,31 +76,44 @@ public:
 // task を RUN_TIMING で参照できるようにするためのクラス
 class tasklist
 {
-	std::unordered_map<RUN_TIMING, task> list;
+	std::unordered_map<RUN_TIMING, task*> list;
 
 public:
+	tasklist()
+	{
+		for (int count = RT_ENUM_BEGIN+1; count < RT_ENUM_END; ++count) {
+			list[(RUN_TIMING)count] = new task;
+		}
+	}
+	~tasklist()
+	{
+		for (int count = RT_ENUM_BEGIN+1; count < RT_ENUM_END; ++count) {
+			delete list[(RUN_TIMING)count];
+		}
+	}
+
 	task& operator[](RUN_TIMING rt)
 	{
-		return list[rt];
+		return *list[rt];
 	}
 
 	// 複数の RUN_TIMING を module から登録
-	void add(module& m)
+	void add(module* m)
 	{
-		const std::vector<RUN_TIMING>* timing = &m.runTiming();
+		const std::vector<RUN_TIMING>* timing = &m->runTiming();
 		for (auto count = 0; count < timing->size(); ++count) {
-			list[timing->at(count)].add(&m);
+			list[timing->at(count)]->add(m);
 		}
 	}
 
 	// 複数の module から 複数の RUN_TIMING を登録
-	void allocation(modules& ms)
+	void allocation(modules* ms)
 	{
-		for (auto& l : list) {
-			l.second.clear();
+		for (const auto& l : list) {
+			l.second->clear();
 		}
-		for (auto count = 0; count < ms.size(); ++count) {
-			add(ms[count]);
+		for (auto count = 0; count < ms->size(); ++count) {
+			add(ms->at(count));
 		}
 	}
 };

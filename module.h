@@ -15,7 +15,9 @@ INT_PTR __stdcall DlgProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp);
 
 
 // 実行タイミングを表す
-enum RUN_TIMING {
+enum RUN_TIMING : int {
+	RT_ENUM_BEGIN,
+
 	RT_SELECT,	// 選択時
 	RT_INIT,	// 初期化時(clockex自体の初期化処理の後)	初期変数の改変など
 	RT_CALC,	// 計算時(clockex自体の計算処理の前)		計算処理の中断
@@ -25,6 +27,8 @@ enum RUN_TIMING {
 	RT_DELETE,	// 削除時	同上
 	RT_FIRST,	// 一番最初に実行する	この後に読み込まれたRT_FIRST持ちの拡張によって上書きされる,上書きされた場合 2番目以降にもなりうる
 	RT_LAST,	// 一番最後に実行する	同上
+
+	RT_ENUM_END,
 };
 
 // ツールの種類を表す
@@ -159,7 +163,7 @@ public:
 		return nullptr;
 	}
 
-	const std::vector<RUN_TIMING> runTiming()
+	const std::vector<RUN_TIMING>& runTiming()
 	{
 		return this->timing;
 	}
@@ -315,7 +319,7 @@ class modules {
 				ap->imgs->load((char*)iconPath.c_str(), iconName);
 			}
 
-			module m;
+			module* m;
 			if (-1 != order) {
 				m = this->add(order, iconName, type, &timing, true);
 			} else {
@@ -325,24 +329,29 @@ class modules {
 			switch (type) {
 			case T_FILE:
 			case T_FUNC:
-				m.init((char*)filePath.data(), (char*)option.data());
+				m->init((char*)filePath.data(), (char*)option.data());
 				break;
 			}
 		}
 	}
 public:
 	// 要素アクセス用
-	module& operator[](size_t id) {
-		return tooltips[id];
+	module* at(size_t id)
+	{
+		return &tooltips[id];
+	}
+	module& operator[](size_t id)
+	{
+		return *at(id);
 	}
 
 	// 新しい要素を追加
-	module& make(char* newIconName, TOOL newType, std::vector<RUN_TIMING>* newTiming, bool saved)
+	module* make(char* newIconName, TOOL newType, std::vector<RUN_TIMING>* newTiming, bool saved)
 	{
 		tooltips.push_back({ newIconName, newType, newTiming, saved });
-		return back();
+		return &back();
 	}
-	module& add(char* newIconName, TOOL newType, std::vector<RUN_TIMING>* newTiming)
+	module* add(char* newIconName, TOOL newType, std::vector<RUN_TIMING>* newTiming)
 	{
 		return make(newIconName, newType, newTiming, false);
 	}
@@ -350,7 +359,7 @@ public:
 	{
 		tooltips.push_back({ newIconName, newType, newTiming });
 	}
-	module& add(size_t id, char* newIconName, TOOL newType, std::vector<RUN_TIMING>* newTiming, bool saved)
+	module* add(size_t id, char* newIconName, TOOL newType, std::vector<RUN_TIMING>* newTiming, bool saved)
 	{
 		if (tooltips.size() <= id) {
 			tooltips.resize(id + 1);
@@ -358,7 +367,8 @@ public:
 		if (!tooltips[id]) {
 			OutputDebugString("module duplex write\n");
 		}
-		return tooltips[id] = { newIconName, newType, newTiming, saved };
+		tooltips[id] = { newIconName, newType, newTiming, saved };
+		return &tooltips[id];
 	}
 
 	// 最後にpush_backした要素を返す
@@ -449,7 +459,7 @@ public:
 			o.insert(std::make_pair("order", picojson::value((double)count)));
 
 			base.insert(std::make_pair(
-				ap->appClass->strf("%d_ex_%d_%02d%02d", ++contentCount, ap->c->year(), ap->c->mon(), ap->c->day()),
+				ap->appClass->strf("%d_mod_%d_%02d%02d", ++contentCount, ap->c->year(), ap->c->mon(), ap->c->day()),
 				picojson::value(o)
 			));
 

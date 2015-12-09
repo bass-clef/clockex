@@ -6,7 +6,7 @@
     "order": 3,
     "timing": [
       "RT_SELECT",
-      "RT_INIT"
+      "RT_EXIT"
     ],
     "type": "T_FILE"
   }

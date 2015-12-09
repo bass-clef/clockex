@@ -4,11 +4,14 @@
 bug:
 //ファイルが開けない  DlgProcはbool値を返す,DefWindowProcによって代わりに違う処理がされていた?
 //exeファイル,addressの中身が突如消失して実行できない	push_back と [] での作成に差がある,あそらく別スレッドで作成した時のみおこるであろう
-拡張ツールの初回起動(ファイルのみ確認)時にエラー(ファイル名が正しくない(おそらく初回代入されてない))
-	std::string file なくしてから最近なってない -> 治った?
-RUN_TIMINGキューがきいてない
-	exqueに追加されてない
-		addがよばれてない
+//拡張ツールの初回起動(ファイルのみ確認)時にエラー(ファイル名が正しくない(おそらく初回代入されてない))
+//	std::string file なくしてから最近なってない -> 治った?
+//		実態が返ってきた module に対して init を行っていたため。ポインタを返すようにして、参照initに変更でおそらく完治
+//RUN_TIMINGキューがきいてない
+//	exqueに追加されてない
+//		addがよばれてない
+//			task実態の実態が作成されていなかった
+//				runTimingが実態参照で返ってきていなかった
 
 
 issue:
@@ -25,8 +28,14 @@ issue:
 //	RT_ADD時 -> tooltips から deque に読み取り
 //	キューの読み取りは 
 //		RT_BEGIN	if (RT_BEGIN) { push_front } else { a = front; push_front b; push_front a; }
-・ツールの削除機能,候補(一定時間選択)
-
+・ツールの削除機能
+・ツールの編集機能
+・本体の設定拡張の作成
+	色変更
+	アラーム
+	fps固定
+	開閉固定
+	キー設定
 
 ・重複関数をまとめる
 	module add				switch
@@ -189,7 +198,7 @@ INT_PTR __stdcall DlgProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp)
 			GetWindowText(hIconFileEdit, (LPSTR)iconFileName.c_str(), iconFileName.size());
 
 			char iconName[MAX_PATH] = "";
-			if (1 < iconFileName.size()) {
+			if (iconFileName.size()) {
 				// アイコンファイル読み込み
 				imgs.load((char*)iconFileName.data(), iconName);
 				OutputDebugString(ai.appClass->strf("icon file load -> \"%s\"\n", iconName));
@@ -200,12 +209,12 @@ INT_PTR __stdcall DlgProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp)
 			}
 
 			// 種類別にtooltips作成
-			module& m = tooltips.add(iconName, type, &timing);
+			module* m = tooltips.add(iconName, type, &timing);
 
 			switch (type) {
 			case T_FUNC:
 			case T_FILE:
-				m.init((char*)fileName.data(), (char*)options.data());
+				m->init((char*)fileName.data(), (char*)options.data());
 				break;
 			}
 
@@ -300,7 +309,7 @@ void app::init(form* window, canvas<form>* cf, HINSTANCE hInst, UINT nCmd)
 	// ツールチップ初期化
 	GetCurrentDirectory(MAX_PATH, currentDir);
 	tooltips.readExtension(&ai, "mods\\", "*.json");
-	exque.allocation(tooltips);
+	exque.allocation(&tooltips);
 	
 	// ツールの実行
 	exque[ai.timing].execute(&ai);
