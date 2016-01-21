@@ -327,7 +327,7 @@ public:
 	// ペンの適用
 	void use(nameType name)
 	{
-		SelectObject((HDC)*p, pens.at(this->name[name]));
+		SelectObject((HDC)*p, pens[this->name[name]] );
 	}
 
 	// 元のペンを適用

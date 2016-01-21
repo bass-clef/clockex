@@ -59,13 +59,13 @@ public:
 			return false;
 		}
 
-		moduleList.push_front(m);
+		moduleList.push_back(m);
 		return true;
 	}
 
 
 	// moduleList ‚É“ü‚Á‚Ä‚éŠg’£‚ðŽÀs
-	void execute(appinfo *ap)
+	void execute(appinfo* ap)
 	{
 		for (const auto& module : moduleList) {
 			module->execute(ap);
@@ -81,13 +81,13 @@ class tasklist
 public:
 	tasklist()
 	{
-		for (int count = RT_ENUM_BEGIN+1; count < RT_ENUM_END; ++count) {
+		for (int count = RT_ENUM_BEGIN; count < RT_ENUM_END; ++count) {
 			list[(RUN_TIMING)count] = new task;
 		}
 	}
 	~tasklist()
 	{
-		for (int count = RT_ENUM_BEGIN+1; count < RT_ENUM_END; ++count) {
+		for (int count = RT_ENUM_BEGIN; count < RT_ENUM_END; ++count) {
 			delete list[(RUN_TIMING)count];
 		}
 	}

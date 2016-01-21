@@ -1,6 +1,10 @@
 
 /*
 
+new:
+dllから aiに格納したクラスメソッドにアクセスできない
+	aiがnullになってる
+
 bug:
 //ファイルが開けない  DlgProcはbool値を返す,DefWindowProcによって代わりに違う処理がされていた?
 //exeファイル,addressの中身が突如消失して実行できない	push_back と [] での作成に差がある,あそらく別スレッドで作成した時のみおこるであろう
@@ -12,7 +16,7 @@ bug:
 //		addがよばれてない
 //			task実態の実態が作成されていなかった
 //				runTimingが実態参照で返ってきていなかった
-
+新規登録できなくなってる
 
 issue:
 //・canvas::image::loads関数の実装	そんなに必要そうでないため保留
@@ -43,13 +47,12 @@ issue:
 */
 
 
-#include <Windows.h>
 #include <array>
 #include <fstream>
 #include <thread>
 #include <vector>
-#include <picojson.h>
 
+#include "appinfo.h"
 #include "appmain.h"
 #include "module.h"
 #include "tasklist.h"
@@ -59,6 +62,8 @@ issue:
 #pragma comment(lib, "WindowsCodecs.lib")
 #pragma warning(disable:4244)
 
+// グローバル変数
+__declspec(dllexport) appinfo ai;
 
 // ファイル単位変数
 namespace {
@@ -73,47 +78,13 @@ namespace {
 		listText = { "選択時", "初期化時", "計算時", "描画時", "終了時", "優先", "後回し" };
 
 	// 変数
-	appinfo ai;
+	dll loadedDlls;					// DLL管理
 	chrono c;						// 時計
 	modules tooltips;				// ツールチップ管理
 	pen<form, std::string> p;		// ペン管理
 	image<form, std::string> imgs;	// 画像管理
 	tasklist exque;					// 実行タイミング管理
-
-	COLORREF transColor, backColor, appColor, selBackColor;
-	POINT mousePos, prevSecPos;
-	RECT windowPos;
-	bool opening = false, opened = false;
-	float basex = 50, basey = 50, openingCount = 0,		// 描画始点
-		secAngle, minAngle, hourAngle,					// 時,分,秒 針の角度
-		mouseAngle, iconsAngle,							// 中心とカーソルとの角度, ツールチップの表示間隔角度
-		r, rHour, rMinute, rIcons = 75,					// 針の長さ
-		hwidth, hheight;								// ウィンドウ半分のサイズ
-	int selId;											// 選択されたツールチップID
-	char currentDir[MAX_PATH];
-
-	/*
-	:ファイルに保存するもの:
-	tooltips {
-		タイプ(int)							T_EXIT / T_ADD / T_FILE / T_FUNC		T_EXIT,T_ADDは完全パス,オプション名なし/T_FUNCはcanvas,windowのポインタを渡す引数固定
-		ファイル完全パス(size_t,char*)		ファイル名,dll名
-		オプション/関数名(size_t,char*)		T_FILE:オプション T_FUNC:関数名
-		アイコン名(size_t,char*)			iconsで読み込みしたエイリアス名(おそらく自動的に割り付け)
-		動作するタイミング(int)				init,calc,draw,exit それぞれ複数選択可
-	}
-
-	:json形式:
-	modsディレクトリ下の hoge.json をすべて読み込む
-	{
-		type:"0-3|exit|add|file|func",
-		path:"ファイル名",
-		option:"オプションまたは関数名",
-		timing:"0-4|init|calc|draw|exit|selected"
-	}
-	*/
 }
-
-
 
 
 // サブウィンドウのWinMsgコールバック
@@ -138,38 +109,12 @@ INT_PTR __stdcall DlgProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp)
 	case WM_COMMAND:
 		// 子コントロールから
 		switch (LOWORD(wp)) {
-		case IDC_BUTTON1: {// ...
-			char fileName[MAX_PATH] = "";
-
-			OPENFILENAME ofn;
-			ZeroMemory(&ofn, sizeof(ofn));
-			ofn.lStructSize = sizeof(OPENFILENAME);
-			ofn.hwndOwner = hWnd;
-			ofn.lpstrFilter = "すべてのファイル(*.*)\0*.*\0\0";
-			ofn.lpstrFile = fileName;
-			ofn.nMaxFile = MAX_PATH;
-			ofn.Flags = OFN_FILEMUSTEXIST;
-			GetOpenFileName(&ofn);
-
-			SetWindowText(GetDlgItem(hWnd, IDC_EDIT1), (LPCSTR)fileName);
+		case IDC_BUTTON1:	// ...
+			app::openFileDlgSetWindowText(GetDlgItem(hWnd, IDC_EDIT1));
 			break;
-		}
-		case IDC_BUTTON3: {// ...
-			char fileName[MAX_PATH] = "";
-
-			OPENFILENAME ofn;
-			ZeroMemory(&ofn, sizeof(ofn));
-			ofn.lStructSize = sizeof(OPENFILENAME);
-			ofn.hwndOwner = hWnd;
-			ofn.lpstrFilter = "すべてのファイル(*.*)\0*.*\0\0";
-			ofn.lpstrFile = fileName;
-			ofn.nMaxFile = MAX_PATH;
-			ofn.Flags = OFN_FILEMUSTEXIST;
-			GetOpenFileName(&ofn);
-
-			SetWindowText(GetDlgItem(hWnd, IDC_EDIT3), (LPCSTR)fileName);
+		case IDC_BUTTON3:	// ...
+			app::openFileDlgSetWindowText(GetDlgItem(hWnd, IDC_EDIT3));
 			break;
-		}
 
 		case IDC_BUTTON2: {	// 作成
 			// ツールの種類
@@ -218,7 +163,7 @@ INT_PTR __stdcall DlgProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp)
 				break;
 			}
 
-			ai.exque->add(m);
+			exque.allocation(&tooltips);
 			EndDialog(hWnd, IDOK);
 			break;
 		}
@@ -257,17 +202,18 @@ LRESULT __stdcall WndProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp)
 void app::init(form* window, canvas<form>* cf, HINSTANCE hInst, UINT nCmd)
 {
 	this->window = window;
-	this->cf = cf;
+	this->canvasForm = cf;
 
 	ai.timing = RUN_TIMING::RT_INIT;
 	ai.appClass = this;
-	ai.window = window;
-	ai.client = cf;
-	ai.c = &c;
-	ai.p = &p;
+	ai.windowInfo = window;
+	ai.clientInfo = cf;
+	ai.chrono = &c;
+	ai.pens = &p;
 	ai.imgs = &imgs;
 	ai.tooltips = &tooltips;
 	ai.exque = &exque;
+	ai.dlls = &loadedDlls;
 
 	HICON hIcon = LoadIcon(hInst, (LPCSTR)IDI_ICON1);
 	window->makeClass(hInst, "clockex", WndProc, 3U, hIcon);
@@ -301,8 +247,8 @@ void app::init(form* window, canvas<form>* cf, HINSTANCE hInst, UINT nCmd)
 
 	const int hourHand = 3, minuteHand = 2;
 	p.init(window);
-	p.make(PS_SOLID, hourHand, appColor, "hour");
-	p.make(PS_SOLID, minuteHand, appColor, "minute");
+	p.make(PS_SOLID, hourHand, appColor, penHour);
+	p.make(PS_SOLID, minuteHand, appColor, penMinute);
 	p.old();
 	imgs.init(window);
 
@@ -448,18 +394,18 @@ bool app::calc()
 bool app::draw()
 {
 	// 背景
-	cf->basepos(0, 0);
-	cf->color(transColor);
-	cf->fillBox(0, 0, initwidth(), initheight());
+	canvasForm->basepos(0, 0);
+	canvasForm->color(transColor);
+	canvasForm->fillBox(0, 0, initwidth(), initheight());
 
 	// 枠
-	cf->basepos(basex, basey);
-	cf->color(backColor);
-	cf->fillCircle(1, 1, width()-1, height()-1);
+	canvasForm->basepos(basex, basey);
+	canvasForm->color(backColor);
+	canvasForm->fillCircle(1, 1, width()-1, height()-1);
 
-	cf->color(appColor);
-	p.use("hour");
-	cf->circle(1, 1, width() - 1, height() - 1);
+	canvasForm->color(appColor);
+	p.use(penHour);
+	canvasForm->circle(1, 1, width() - 1, height() - 1);
 	p.old();
 
 	// 針点
@@ -469,11 +415,11 @@ bool app::draw()
 		int x = hwidth + cos(rad)*(r - mergin), y = hheight + sin(rad)*(r - mergin),
 			xMinor = x - 2, yMinor = y - 2,
 			xPlus = x + 2, yPlus = y + 2;
-		cf->pos(xMinor, yMinor)->spix();
-		cf->pos(xMinor, yPlus)->spix();
-		cf->pos(x, y)->spix();
-		cf->pos(xPlus, yMinor)->spix();
-		cf->pos(xPlus, yPlus)->spix();
+		canvasForm->pos(xMinor, yMinor)->spix();
+		canvasForm->pos(xMinor, yPlus)->spix();
+		canvasForm->pos(x, y)->spix();
+		canvasForm->pos(xPlus, yMinor)->spix();
+		canvasForm->pos(xPlus, yPlus)->spix();
 	}
 
 	// ツールの表示
@@ -482,42 +428,42 @@ bool app::draw()
 
 		if (TOOL::T_NOTSELECTED != selId) {
 			// 選択肢
-			cf->color(selBackColor)->fillPie(
+			canvasForm->color(selBackColor)->fillPie(
 				mergin, mergin, width() - mergin, height() - mergin,
 				r + cos(iconsAngle* selId - M_PI_2 - iconsAngle / 2)*r, r + sin(iconsAngle* selId - M_PI_2 - iconsAngle / 2)*r,
 				r + cos(iconsAngle* selId - M_PI_2 + iconsAngle / 2)*r, r + sin(iconsAngle* selId - M_PI_2 + iconsAngle / 2)*r
 				);
 
 			// 選択
-			cf->color(appColor)->fillPie(
+			canvasForm->color(appColor)->fillPie(
 				mergin, mergin, width() - mergin, height() - mergin,
 				r + cos(iconsAngle* selId - M_PI_2 + iconsAngle / 2)*r, r + sin(iconsAngle* selId - M_PI_2 + iconsAngle / 2)*r,
 				r + cos(iconsAngle* selId - M_PI_2 - iconsAngle / 2)*r, r + sin(iconsAngle* selId - M_PI_2 - iconsAngle / 2)*r
 				);
 		} else {
-			cf->color(selBackColor)->fillCircle(mergin, mergin, width() - mergin, height() - mergin);
-			cf->color(appColor);
+			canvasForm->color(selBackColor)->fillCircle(mergin, mergin, width() - mergin, height() - mergin);
+			canvasForm->color(appColor);
 		}
 
 		// チップ
-		cf->addpos(hwidth, hheight);
+		canvasForm->addpos(hwidth, hheight);
 		for (size_t count = 0; count < tooltips.size(); ++count) {
 			a = fmod(iconsAngle*count + M_PI + M_PI_2, M_PI * 2);
 			imgs.drawCenter(
 				tooltips[count].name(),
-				cf->bx() + hwidth + cos(a) * rIcons,
-				cf->by() + hheight + sin(a) * rIcons
+				canvasForm->bx() + hwidth + cos(a) * rIcons,
+				canvasForm->by() + hheight + sin(a) * rIcons
 			);
 		}
 	}
 
 	// 針
-	cf->addpos(hwidth, hheight);
-	cf->line(0, 0, prevSecPos.x, prevSecPos.y);
-	p.use("minute");
-	cf->line(0, 0, cos(minAngle)*rMinute, sin(minAngle)*rMinute);
-	p.use("hour");
-	cf->line(0, 0, cos(hourAngle)*rHour, sin(hourAngle)*rHour);
+	canvasForm->addpos(hwidth, hheight);
+	canvasForm->line(0, 0, prevSecPos.x, prevSecPos.y);
+	p.use(penMinute);
+	canvasForm->line(0, 0, cos(minAngle)*rMinute, sin(minAngle)*rMinute);
+	p.use(penHour);
+	canvasForm->line(0, 0, cos(hourAngle)*rHour, sin(hourAngle)*rHour);
 	p.old();
 
 
@@ -531,16 +477,16 @@ bool app::draw()
 	};
 
 	// 日付,時間の表示
-	cf->white()->pos(0, hheight - rowHeight - window->getFontSize()->cy * 2);
-	cf->mesfunc(centeringFunc, "%d", c.year());
-	cf->mesfunc(centeringFunc, "%2d / %2d", c.mon(), c.day());
+	canvasForm->white()->pos(0, hheight - rowHeight - window->getFontSize()->cy * 2);
+	canvasForm->mesfunc(centeringFunc, "%d", c.year());
+	canvasForm->mesfunc(centeringFunc, "%2d / %2d", c.mon(), c.day());
 
-	cf->white()->pos(0, hheight + rowHeight);
-	cf->mesfunc(centeringFunc, "%s", c.toName(c.dotw()));
-	cf->mesfunc(centeringFunc, "%d:%02d %2d", c.hour(), c.minute(), c.second());
+	canvasForm->white()->pos(0, hheight + rowHeight);
+	canvasForm->mesfunc(centeringFunc, "%s", c.toName(c.dotw()));
+	canvasForm->mesfunc(centeringFunc, "%d:%02d %2d", c.hour(), c.minute(), c.second());
 
 	// 裏画面反映
-	cf->redraw();
+	canvasForm->redraw();
 
 	return false;
 }

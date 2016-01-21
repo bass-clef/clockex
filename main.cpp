@@ -1,16 +1,14 @@
 #include <Windows.h>
-#include <thread>
 
 #include "appmain.h"
-
 
 int __stdcall WinMain(HINSTANCE hInst, HINSTANCE hPrev, char* lpCmd, int nCmd)
 {
 	form window;
 	canvas<form> cf(&window);
-	app app;
+	app subMain;
 
-	app.init(&window, &cf, hInst, nCmd);
+	subMain.init(&window, &cf, hInst, nCmd);
 
 	// 終了から遅延させる
 	short endCount = 0;
@@ -20,7 +18,7 @@ int __stdcall WinMain(HINSTANCE hInst, HINSTANCE hPrev, char* lpCmd, int nCmd)
 	// アプリケーションメイン
 	const auto appMain = [&](MSG msg) {
 		// 待機
-		if (app.main()) {
+		if (subMain.main()) {
 			endFlag = true;
 		}
 
@@ -38,7 +36,7 @@ int __stdcall WinMain(HINSTANCE hInst, HINSTANCE hPrev, char* lpCmd, int nCmd)
 	// 終了コード来るまで待機
 	while (window.messageLoop(appMain, fps));
 
-	app.exit();
+	subMain.exit();
 
 	return 0;
 }

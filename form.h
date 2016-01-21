@@ -26,13 +26,10 @@ class form
 public:
 	form(HWND hWnd)
 	{
-		this->hWnd = hWnd;
-		makeObject();
+		initFromHWND(hWnd);
 	}
-	form()
-	{
+	form() {}
 
-	}
 	~form()
 	{
 		DeleteObject(hMBitmap);
@@ -67,6 +64,13 @@ public:
 		return hDC;
 	}
 
+
+	// 特定のウィンドウハンドルから初期化
+	void initFromHWND(HWND hWnd)
+	{
+		this->hWnd = hWnd;
+		makeObject();
+	}
 
 	// クラスの作成
 	void makeClass(HINSTANCE hInstance = NULL, char* AppName = "static", WNDPROC WindowProc = DefWindowProc, UINT style = CS_HREDRAW | CS_VREDRAW, HICON hIcon = nullptr)

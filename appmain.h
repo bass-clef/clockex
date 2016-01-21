@@ -2,9 +2,9 @@
 
 #define _USE_MATH_DEFINES
 
+#include <Windows.h>
 #include <math.h>
 #include <string>
-#include <vector>
 
 #include "canvas.h"
 #include "form.h"
@@ -13,24 +13,27 @@
 class app
 {
 	form* window;
-	canvas<form>* cf;
+	canvas<form>* canvasForm;
 
 	SIZE size = { 100, 100 }, initsize = { 200, 200 };
 
 	std::string str;
 
 public:
-	static void getLastError(HWND hWnd = nullptr)
-	{
-		void* lpMsgBuf;
+	// 外部から参照できるようにするため public
+	std::string penHour = "hour", penMinute = "minute";
+	COLORREF transColor, backColor, appColor, selBackColor;
+	POINT mousePos, prevSecPos;
+	RECT windowPos;
+	bool opening = false, opened = false;
+	float basex = 50, basey = 50, openingCount = 0,		// 描画始点
+		secAngle, minAngle, hourAngle,					// 時,分,秒 針の角度
+		mouseAngle, iconsAngle,							// 中心とカーソルとの角度, ツールチップの表示間隔角度
+		r, rHour, rMinute, rIcons = 75,					// 針の長さ
+		hwidth, hheight;								// ウィンドウ半分のサイズ
+	int selId;											// 選択されたツールチップID
+	char currentDir[MAX_PATH];
 
-		// エラー表示文字列作成
-		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-			NULL, GetLastError(), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPTSTR)&lpMsgBuf, 0, NULL);
-
-		MessageBox(hWnd, (const char*)lpMsgBuf, NULL, MB_OK);	// メッセージ表示
-		LocalFree(lpMsgBuf);
-	}
 
 	virtual void init(form* window, canvas<form>* cf, HINSTANCE hInst, UINT nCmd);
 	virtual void exit();
@@ -44,6 +47,36 @@ public:
 	int initwidth() { return initsize.cx; }
 	int initheight() { return initsize.cy; }
 
+	// 拡張エラーの表示
+	static void getLastError(HWND hWnd = nullptr)
+	{
+		void* lpMsgBuf;
+
+		// エラー表示文字列作成
+		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+			NULL, GetLastError(), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPTSTR)&lpMsgBuf, 0, NULL);
+
+		MessageBox(hWnd, (const char*)lpMsgBuf, NULL, MB_OK);	// メッセージ表示
+		LocalFree(lpMsgBuf);
+	}
+
+	// ファイル選択ダイアログの表示
+	static void openFileDlgSetWindowText(HWND hWnd = nullptr)
+	{
+		char fileName[MAX_PATH] = "";
+
+		OPENFILENAME ofn;
+		ZeroMemory(&ofn, sizeof(ofn));
+		ofn.lStructSize = sizeof(OPENFILENAME);
+		ofn.hwndOwner = hWnd;
+		ofn.lpstrFilter = "すべてのファイル(*.*)\0*.*\0\0";
+		ofn.lpstrFile = fileName;
+		ofn.nMaxFile = MAX_PATH;
+		ofn.Flags = OFN_FILEMUSTEXIST;
+		GetOpenFileName(&ofn);
+
+		SetWindowText(hWnd, (LPCSTR)fileName);
+	}
 
 	// 度からラジアンへの変換
 	inline double degrad(double deg)
@@ -75,23 +108,4 @@ public:
 
 		return str.data();
 	}
-};
-
-
-// appmainで使うクラスまとめ
-class modules;
-class tasklist;
-struct appinfo
-{
-	enum RUN_TIMING timing;	// 前回のタイミング
-
-	app* appClass;					// appmain全部
-	form* window;					// ウィンドウ情報
-	canvas<form>* client;			// クライアント情報
-
-	chrono* c;						// 時計
-	pen<form, std::string>* p;		// ペン管理
-	image<form, std::string>* imgs;	// 画像管理
-	modules* tooltips;				// ツールチップ管理
-	tasklist* exque;				// 実行タイミング管理
 };

@@ -5,10 +5,12 @@
 #include <vector>
 #include <thread>
 #include <fstream>
+#include <picojson.h>
 
 #include "appmain.h"
 #include "resource.h"
 #include "interchangeable.h"
+#include "dll.h"
 
 // プロトタイプ宣言
 INT_PTR __stdcall DlgProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp);
@@ -16,9 +18,8 @@ INT_PTR __stdcall DlgProc(HWND hWnd, UINT uMsg, WPARAM wp, LPARAM lp);
 
 // 実行タイミングを表す
 enum RUN_TIMING : int {
-	RT_ENUM_BEGIN,
-
 	RT_SELECT,	// 選択時
+	RT_START,	// appmainが作成された直後(clockex自体の初期化処理の前)
 	RT_INIT,	// 初期化時(clockex自体の初期化処理の後)	初期変数の改変など
 	RT_CALC,	// 計算時(clockex自体の計算処理の前)		計算処理の中断
 	RT_DRAW,	// 描画時(clockex自体の描画処理の前)		処理後の変数の改変,描画の中断
@@ -29,6 +30,7 @@ enum RUN_TIMING : int {
 	RT_LAST,	// 一番最後に実行する	同上
 
 	RT_ENUM_END,
+	RT_ENUM_BEGIN = RT_SELECT,
 };
 
 // ツールの種類を表す
@@ -38,28 +40,33 @@ enum TOOL {
 	T_ADD,		// 追加する
 	T_FILE,		// ファイルを呼び出す
 	T_FUNC,		// 関数を呼び出す
+	T_NULL,		// 空のツール
 };
 
 // 実行タイミングと文字列の互換用
-const interchangeableClass<RUN_TIMING, const std::string> timingAndString = {
-	std::make_pair(RT_SELECT, "RT_SELECT"),
-	std::make_pair(RT_INIT, "RT_INIT"),
-	std::make_pair(RT_CALC, "RT_CALC"),
-	std::make_pair(RT_DRAW, "RT_DRAW"),
-	std::make_pair(RT_EXIT, "RT_EXIT"),
-	std::make_pair(RT_ADD, "RT_ADD"),
-	std::make_pair(RT_DELETE, "RT_DELETE"),
-	std::make_pair(RT_FIRST, "RT_FIRST"),
-	std::make_pair(RT_LAST, "RT_LAST"),
-};
+//using timingString = std::pair<RUN_TIMING, std::string>;
+const interchangeableClass<RUN_TIMING, std::string> timingAndString({
+	{ RT_SELECT, "RT_SELECT" },
+	{ RT_START, "RT_START" },
+	{ RT_INIT, "RT_INIT" },
+	{ RT_CALC, "RT_CALC" },
+	{ RT_DRAW, "RT_DRAW" },
+	{ RT_EXIT, "RT_EXIT" },
+	{ RT_ADD, "RT_ADD" },
+	{ RT_DELETE, "RT_DELETE" },
+	{ RT_FIRST, "RT_FIRST" },
+	{ RT_LAST, "RT_LAST" }
+});
+
 // 種類と文字列の互換用
-const interchangeableClass<TOOL, const std::string> toolAndString = {
-	std::make_pair(T_NOTSELECTED, "T_NOTSELECTED"),
-	std::make_pair(T_EXIT, "T_EXIT"),
-	std::make_pair(T_ADD, "T_ADD"),
-	std::make_pair(T_FILE, "T_FILE"),
-	std::make_pair(T_FUNC, "T_FUNC"),
-};
+const interchangeableClass<TOOL, std::string> toolAndString({
+	{ T_NOTSELECTED, "T_NOTSELECTED" },
+	{ T_EXIT, "T_EXIT" },
+	{ T_ADD, "T_ADD" },
+	{ T_FILE, "T_FILE" },
+	{ T_FUNC, "T_FUNC" },
+	{ T_NULL, "T_NULL" }
+});
 
 
 // モジュール管理クラス
@@ -81,42 +88,66 @@ class module
 		return false;
 	}
 
+	template<class lambda>
+	void executeThread(lambda subMain, RUN_TIMING rt, appinfo* aiCopy)
+	{
+		std::thread subThread(subMain, rt, aiCopy);
+		switch (rt) {
+		case RT_INIT:
+		case RT_EXIT:
+			// 初期化と終了処理は必ず終わるまで待つ(親スレッドが落ちると子スレッドも落ちて処理が中断、正常に終わらないため)
+			subThread.join();
+			break;
+
+		default:
+			subThread.detach();
+		}
+	}
+
 	// ファイルをオプション付きで実行
 	void exec(appinfo* ai)
 	{
-		std::thread execute([&]() {
-			SHELLEXECUTEINFO sei = { 0 };
-			sei.cbSize = sizeof(sei);
-			sei.hwnd = (HWND)*ai->window;
-			sei.nShow = SW_SHOWNORMAL;
-			sei.fMask = SEE_MASK_NOCLOSEPROCESS;
-			sei.lpFile = address.data();
-			sei.lpParameters = option.data();
-			if (!ShellExecuteEx(&sei) || (const int)sei.hInstApp <= 32) {
-				result = (long)sei.hInstApp;
-				return;
-			}
+		executeThread(
+			[&](RUN_TIMING rt, appinfo* aiCopy) {
+				SHELLEXECUTEINFO sei = { 0 };
+				sei.cbSize = sizeof(sei);
+				sei.hwnd = (HWND)*aiCopy->windowInfo;
+				sei.nShow = SW_SHOWNORMAL;
+				sei.fMask = SEE_MASK_NOCLOSEPROCESS;
+				sei.lpFile = address.data();
+				sei.lpParameters = option.data();
+				if (!ShellExecuteEx(&sei) || (const int)sei.hInstApp <= 32) {
+					result = (long)sei.hInstApp;
+					return;
+				}
 
-			WaitForSingleObject(sei.hProcess, INFINITE);
-			result = (long)sei.hInstApp;
-		});
-		execute.detach();
+				WaitForSingleObject(sei.hProcess, INFINITE);
+				result = (long)sei.hInstApp;
+			},
+			ai->timing,
+			ai
+		);
 	}
 	// module関数にappinfoを渡して呼び出し
 	void func(appinfo* ai)
 	{
-		std::thread execute([&]() {
-			typedef bool(*proc_type)(appinfo*);
+		executeThread(
+			[&](RUN_TIMING rt, appinfo* aiCopy) {
+				typedef void(__stdcall *proc_type)(RUN_TIMING, appinfo*);
 
-			HMODULE hModule = LoadLibrary(option.data());
+				HMODULE hModule = aiCopy->dlls->load(address.data());
+				if (nullptr == hModule) return;
 
-			proc_type proc = (proc_type)GetProcAddress(hModule, address.data());
+				proc_type proc = (proc_type)GetProcAddress(hModule, option.data());
+				if (nullptr == proc) {
+					return;
+				}
 
-			result = proc(ai);
-
-			FreeLibrary(hModule);
-		});
-		execute.detach();
+				proc(rt, aiCopy);
+			},
+			ai->timing,
+			ai
+		);
 	}
 public:
 
@@ -204,7 +235,7 @@ public:
 		case T_ADD: {
 			// 自身の追加
 			std::thread makeTool([&]() {
-				DialogBox((HINSTANCE)*ap->window, (LPCSTR)IDD_DIALOG1, (HWND)*ap->window, DlgProc);
+				DialogBox((HINSTANCE)*ap->windowInfo, (LPCSTR)IDD_DIALOG1, (HWND)*ap->windowInfo, DlgProc);
 			});
 			makeTool.detach();
 			break;
@@ -287,7 +318,8 @@ class modules {
 			auto element = it->second.get<picojson::object>();
 
 			if (element["type"].is<std::string>()) {
-				type = toolAndString[element["type"].get<std::string>()];
+				auto pt = element["type"].get<std::string>();
+				type = toolAndString[ pt ];
 			}
 			if (element["file"].is<std::string>()) {
 				filePath.assign(element["file"].get<std::string>().data());
@@ -302,12 +334,14 @@ class modules {
 				order = (size_t)element["order"].get<double>();
 			}
 			if (element["timing"].is<std::string>()) {
-				timing = { timingAndString[element["timing"].get<std::string>()] };
+				auto pt = element["timing"].get<std::string>();
+				timing = { timingAndString[ pt ] };
 			} else if (element["timing"].is<picojson::array>()) {
 				auto a = element["timing"].get<picojson::array>();
 				for (auto count = 0; count < a.size(); ++count) {
 					if (a[count].is<std::string>()) {
-						timing.push_back( timingAndString[a[count].get<std::string>()] );
+						auto pt = a[count].get<std::string>();
+						timing.push_back( timingAndString[ pt ] );
 					}
 				}
 			}
@@ -319,12 +353,7 @@ class modules {
 				ap->imgs->load((char*)iconPath.c_str(), iconName);
 			}
 
-			module* m;
-			if (-1 != order) {
-				m = this->add(order, iconName, type, &timing, true);
-			} else {
-				m = this->make(iconName, type, &timing, true);
-			}
+			module* m = this->add(iconName, type, &timing, true, order);
 			
 			switch (type) {
 			case T_FILE:
@@ -346,21 +375,12 @@ public:
 	}
 
 	// 新しい要素を追加
-	module* make(char* newIconName, TOOL newType, std::vector<RUN_TIMING>* newTiming, bool saved)
+	module* add(char* newIconName, TOOL newType, std::vector<RUN_TIMING>* newTiming, bool saved = false, size_t newId = -1)
 	{
-		tooltips.push_back({ newIconName, newType, newTiming, saved });
-		return &back();
-	}
-	module* add(char* newIconName, TOOL newType, std::vector<RUN_TIMING>* newTiming)
-	{
-		return make(newIconName, newType, newTiming, false);
-	}
-	void add(char* newIconName, TOOL newType, RUN_TIMING newTiming)
-	{
-		tooltips.push_back({ newIconName, newType, newTiming });
-	}
-	module* add(size_t id, char* newIconName, TOOL newType, std::vector<RUN_TIMING>* newTiming, bool saved)
-	{
+		size_t id = newId;
+		if (-1 == id) {
+			id = tooltips.size();
+		}
 		if (tooltips.size() <= id) {
 			tooltips.resize(id + 1);
 		}
@@ -369,12 +389,6 @@ public:
 		}
 		tooltips[id] = { newIconName, newType, newTiming, saved };
 		return &tooltips[id];
-	}
-
-	// 最後にpush_backした要素を返す
-	module& back()
-	{
-		return tooltips.back();
 	}
 
 	// 要素の数
@@ -448,7 +462,7 @@ public:
 		std::string representative;
 
 		this->eraseEmpty();
-		ap->c->gettime();
+		ap->chrono->gettime();
 
 		for (auto count = 0; count < tooltips.size(); ++count) {
 			if (tooltips[count].isSaved()) {
@@ -459,7 +473,7 @@ public:
 			o.insert(std::make_pair("order", picojson::value((double)count)));
 
 			base.insert(std::make_pair(
-				ap->appClass->strf("%d_mod_%d_%02d%02d", ++contentCount, ap->c->year(), ap->c->mon(), ap->c->day()),
+				ap->appClass->strf("%d_mod_%d_%02d%02d", ++contentCount, ap->chrono->year(), ap->chrono->mon(), ap->chrono->day()),
 				picojson::value(o)
 			));
 
@@ -478,7 +492,7 @@ public:
 		std::string fileName;
 		if (representative.empty()) {
 			fileName = ap->appClass->strf("mods\\myex_%d_%02d%02d.json",
-				ap->c->year(), ap->c->mon(), ap->c->day(), ap->c->hour(), ap->c->minute());
+				ap->chrono->year(), ap->chrono->mon(), ap->chrono->day(), ap->chrono->hour(), ap->chrono->minute());
 		} else {
 			fileName.resize(MAX_PATH);
 			GetFileTitle(representative.data(), (char*)fileName.c_str(), MAX_PATH);
