@@ -1,12 +1,15 @@
+
 #include <Windows.h>
 
+#define API __declspec(dllexport)
 #include "appmain.h"
+
+__declspec(dllexport) app subMain;
 
 int __stdcall WinMain(HINSTANCE hInst, HINSTANCE hPrev, char* lpCmd, int nCmd)
 {
 	form window;
 	canvas<form> cf(&window);
-	app subMain;
 
 	subMain.init(&window, &cf, hInst, nCmd);
 

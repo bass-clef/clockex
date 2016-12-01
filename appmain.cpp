@@ -75,7 +75,7 @@ namespace {
 	constexpr byte rowHeight = 2;
 	const std::vector<std::string>
 		comboText = { "ClockExの終了", "ツールの追加", "ファイル", "モジュール関数" },
-		listText = { "選択時", "初期化時", "計算時", "描画時", "終了時", "優先", "後回し" };
+		listText = { "選択時", "起動時", "初期化時", "計算時", "描画時", "終了時", "追加時", "削除時", "優先", "後回し" };
 
 	// 変数
 	dll loadedDlls;					// DLL管理
@@ -460,9 +460,9 @@ bool app::draw()
 	// 針
 	canvasForm->addpos(hwidth, hheight);
 	canvasForm->line(0, 0, prevSecPos.x, prevSecPos.y);
-	p.use(penMinute);
+	p.use(penMinute);	// ここでエラーが起きる,コメントアウトすると出ない
 	canvasForm->line(0, 0, cos(minAngle)*rMinute, sin(minAngle)*rMinute);
-	p.use(penHour);
+	p.use(penHour);		// ここでは起きない
 	canvasForm->line(0, 0, cos(hourAngle)*rHour, sin(hourAngle)*rHour);
 	p.old();
 

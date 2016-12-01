@@ -9,8 +9,12 @@
 #include "canvas.h"
 #include "form.h"
 
+#ifndef API
+#define API __declspec(dllimport)
+#endif
+
 // アプリケーションメインクラス
-class app
+class API app
 {
 	form* window;
 	canvas<form>* canvasForm;

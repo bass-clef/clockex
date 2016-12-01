@@ -96,8 +96,8 @@ class module
 		case RT_INIT:
 		case RT_EXIT:
 			// 初期化と終了処理は必ず終わるまで待つ(親スレッドが落ちると子スレッドも落ちて処理が中断、正常に終わらないため)
-			subThread.join();
-			break;
+//			subThread.join();
+//			break;
 
 		default:
 			subThread.detach();
@@ -143,7 +143,8 @@ class module
 					return;
 				}
 
-				proc(rt, aiCopy);
+				proc(rt, aiCopy);	// ここがよんでる場所
+
 			},
 			ai->timing,
 			ai
