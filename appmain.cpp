@@ -401,11 +401,16 @@ bool app::draw()
 	// 枠
 	canvasForm->basepos(basex, basey);
 	canvasForm->color(backColor);
+//	canvasForm->fillPie(1, 1, width()-1, height()-1, 0, 360);
 	canvasForm->fillCircle(1, 1, width()-1, height()-1);
 
+	// 外枠
+	SYSTEM_POWER_STATUS sps;
+	GetSystemPowerStatus(&sps);
+	canvasForm->basepos(basex, basey);
 	canvasForm->color(appColor);
 	p.use(penHour);
-	canvasForm->circle(1, 1, width() - 1, height() - 1);
+	canvasForm->arc(1, 1, width() - 1, height() - 1, raddeg(secAngle) + 90, 360.0 / 100.0 * sps.BatteryLifePercent);
 	p.old();
 
 	// 針点
@@ -460,9 +465,9 @@ bool app::draw()
 	// 針
 	canvasForm->addpos(hwidth, hheight);
 	canvasForm->line(0, 0, prevSecPos.x, prevSecPos.y);
-	p.use(penMinute);	// ここでエラーが起きる,コメントアウトすると出ない
+	p.use(penMinute);
 	canvasForm->line(0, 0, cos(minAngle)*rMinute, sin(minAngle)*rMinute);
-	p.use(penHour);		// ここでは起きない
+	p.use(penHour);
 	canvasForm->line(0, 0, cos(hourAngle)*rHour, sin(hourAngle)*rHour);
 	p.old();
 

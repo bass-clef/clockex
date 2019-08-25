@@ -5,7 +5,7 @@
 #include <vector>
 #include <thread>
 #include <fstream>
-#include <picojson.h>
+#include <picojson/picojson.h>
 
 #include "appmain.h"
 #include "resource.h"
@@ -420,7 +420,7 @@ public:
 	}
 
 	// ƒtƒ@ƒCƒ‹‚Ì—ñ‹“‚ğ‚µ‚Äjson“Ç‚İ‚İ
-	void readExtension(appinfo* ap, char* startDirectory, char* extensions)
+	void readExtension(appinfo* ap, const char* startDirectory, const char* extensions)
 	{
 		locked = true;
 

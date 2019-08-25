@@ -3,6 +3,17 @@
 #include <string>
 #include <vector>
 
+// 度からラジアンへの変換
+inline double degrad(double deg)
+{
+	return (deg - 90) * M_PI / 180.0;
+}
+// ラジアンから度への変換
+inline double raddeg(double rad)
+{
+	return rad * 180.0 / M_PI;
+}
+
 /*
  * gui描画関係を簡単に使えるようにするクラス
  *
@@ -75,7 +86,6 @@ public:
 		return base.y + add.y + y;
 	}
 
-
 	// 基点ポジション変更 (カレントポジション,加算ポジションを初期化)
 	canvas* basepos(int x = INT_MAX, int y = INT_MAX)
 	{
@@ -134,7 +144,7 @@ public:
 
 
 	// 文字(単一行)
-	void print(char* text)
+	void print(const char* text)
 	{
 		TextOut((HDC)*p, this->cx(), this->cy(current.y), text, lstrlen(text));
 
@@ -142,7 +152,7 @@ public:
 		GetTextExtentPoint32((HDC)*p, text, lstrlen(text), &size);
 		this->cy(size.cy);
 	}
-	void printf(char* format, ...)
+	void printf(const char* format, ...)
 	{
 		va_list argptr;
 
@@ -159,7 +169,7 @@ public:
 		delete[] buffer;
 	}
 	// 文字(自動拡張,ユーザー変形付き)
-	void mes(char* text)
+	void mes(const char* text)
 	{
 		RECT rc = {this->cx(), this->cy(), 0, 0};
 		int len = lstrlen(text);
@@ -170,7 +180,7 @@ public:
 		DrawText((HDC)*p, text, len, &rc, DT_WORDBREAK | DT_EXPANDTABS);
 	}
 	// 文字(フォーマット付き)
-	void mesf(char* format, ...)
+	void mesf(const char* format, ...)
 	{
 		va_list argptr;
 
@@ -188,7 +198,7 @@ public:
 	}
 	// 関数,フォーマット付き
 	template<typename callfunc>
-	void mesfunc(callfunc func, char* format, ...)
+	void mesfunc(callfunc func, const char* format, ...)
 	{
 		va_list argptr;
 
@@ -262,9 +272,12 @@ public:
 	}
 
 	// 円弧(角度)
-	void arc(int x, int y, long r, float startAngle, float sweepAngle)
+	void arc(int x1, int y1, int x2, int y2, float startAngle, float sweepAngle)
 	{
-		AngleArc((HDC)*p, this->ax(x), this->ay(y), r, startAngle, sweepAngle);
+		int r = (this->ax(x1) + this->ax(x2)) / 2;
+		float angleToStart = atan2(y2 - y1, x2 - x1) + M_PI/4 + M_PI + M_PI/2 + degrad(startAngle);
+		MoveToEx((HDC)*p, base.x + r/2 + cos(angleToStart) * r/2, base.y + r/2 + sin(angleToStart) * r/2, NULL);
+		AngleArc((HDC)*p, r, (this->ay(y1) + this->ay(y2))/2, r/2, -startAngle+90, sweepAngle);
 	}
 
 	// 扇形(塗りつぶし) ※x1,y1,x2,y2 にはbaseposは加算されない

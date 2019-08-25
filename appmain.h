@@ -82,19 +82,8 @@ public:
 		SetWindowText(hWnd, (LPCSTR)fileName);
 	}
 
-	// 度からラジアンへの変換
-	inline double degrad(double deg)
-	{
-		return (deg - 90) * M_PI / 180.0;
-	}
-	// ラジアンから度への変換
-	inline double raddeg(double rad)
-	{
-		return rad * 180.0 / M_PI;
-	}
-
 	// フォーマットの適用
-	const char* strf(char* format, ...)
+	const char* strf(const char* format, ...)
 	{
 		va_list argptr;
 

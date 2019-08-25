@@ -73,7 +73,7 @@ public:
 	}
 
 	// クラスの作成
-	void makeClass(HINSTANCE hInstance = NULL, char* AppName = "static", WNDPROC WindowProc = DefWindowProc, UINT style = CS_HREDRAW | CS_VREDRAW, HICON hIcon = nullptr)
+	void makeClass(HINSTANCE hInstance = NULL, const char* AppName = "static", WNDPROC WindowProc = DefWindowProc, UINT style = CS_HREDRAW | CS_VREDRAW, HICON hIcon = nullptr)
 	{
 		if (nullptr == hIcon) {
 			hIcon = LoadIcon(NULL, IDI_APPLICATION);
@@ -98,7 +98,7 @@ public:
 	}
 
 	// ウィンドウの作成
-	void makeWindow(int nCmd, char* className, char* windowName = "", int width = 640, int height = 480, DWORD style = WS_OVERLAPPEDWINDOW, DWORD exStyle = 0, int xPos = CW_USEDEFAULT, int yPos = CW_USEDEFAULT)
+	void makeWindow(int nCmd, const char* className, const char* windowName = "", int width = 640, int height = 480, DWORD style = WS_OVERLAPPEDWINDOW, DWORD exStyle = 0, int xPos = CW_USEDEFAULT, int yPos = CW_USEDEFAULT)
 	{
 		hWnd = CreateWindowEx(
 			exStyle, className, windowName, style,
@@ -148,7 +148,7 @@ public:
 	}
 
 	// フォントの作成
-	void makeFont(char* faceName, int height)
+	void makeFont(const char* faceName, int height)
 	{
 		DeleteObject(hFont);
 
